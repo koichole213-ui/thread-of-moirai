@@ -1,0 +1,2 @@
+/* 天方匣 0.1.0 — the approved interface is isolated in a shadow root. */
+#st-plot-root { position: fixed; inset: 0; z-index: 3000; pointer-events: none; }

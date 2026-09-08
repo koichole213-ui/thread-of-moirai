@@ -1,0 +1,67 @@
+
+
+  <div id="main-overlay" hidden><main class="shell">
+    <header class="header">
+      <div><h1>天方匣<span class="preview-tag">0.1.0</span></h1><p id="chat-label">当前聊天</p></div>
+      <button class="icon frost" id="close-main" aria-label="关闭主面板">×</button>
+    </header>
+    <nav class="tabs" role="tablist" aria-label="剧情工具">
+      <svg class="tab-sheet" aria-hidden="true" preserveAspectRatio="none"><path id="sheet-shape"/></svg>
+      <button role="tab" id="play-tab" aria-controls="play-panel" aria-selected="true" tabindex="0">推进<span class="tab-dot"></span></button>
+      <button role="tab" id="outline-tab" aria-controls="outline-panel" aria-selected="false" tabindex="-1">大纲<span class="tab-dot"></span></button>
+    </nav>
+    <div class="paper">
+      <section id="play-panel" role="tabpanel" aria-labelledby="play-tab">
+        <div class="stage-meta"><button class="stage-trigger frost" id="stage-picker" aria-haspopup="dialog"><span id="stage-count">第 5 / 12 阶段</span><span aria-hidden="true">⌄</span></button><span class="quiet">节奏由你</span></div>
+        <div class="stage-heading"><h2 id="stage-title">争执</h2><button class="icon subtle" id="edit-stage" aria-label="编辑当前阶段">✎</button></div>
+        <p class="stage-description" id="stage-description">他回避了关键问题，而你发现了矛盾。<br>秘密尚未揭开，信任正在动摇。</p>
+        <div class="stage-nav"><button class="pill" id="prev-stage">← <span>上一阶段</span></button><button class="pill" id="next-stage"><span>下一阶段</span> →</button></div>
+        <div class="divider"></div>
+        <div class="section-heading"><h3>接下来怎么玩</h3><button class="text-button" id="reroll"><span class="refresh" aria-hidden="true">↻</span> 换一批</button></div>
+        <p class="selection-caption" id="selection-caption">可选 1–2 个方向</p>
+        <div id="choices" role="group" aria-label="选择本轮剧情方向，最多两个"></div>
+        <label class="sr-only" for="preference">补充本轮偏好</label>
+        <div class="secondary-actions"><button id="modify-choices" class="text-button">按偏好修改选项</button><button id="cancel-generation" class="text-button" hidden>取消生成</button></div><p id="generation-status" class="helper" role="status"></p><textarea id="preference" class="preference" rows="2" placeholder="补充偏好，例如：嘴硬一点，别和解"></textarea>
+        <fieldset class="injection"><legend>引导方式</legend><label><input type="radio" name="mode" value="input" checked>放进输入框</label><label><input type="radio" name="mode" value="attach">发送时附带</label></fieldset>
+        <label class="ref-switch"><input type="checkbox" id="edited-guide">下次重生成使用修改后的引导</label><p id="rollback-notice" class="helper" hidden>聊天已回退，请核对当前阶段。<button id="ack-rollback" class="text-button">已核对</button></p><footer class="actions"><div class="secondary-actions"><button class="text-button" id="view-guide">查看引导</button><button class="text-button" id="pause" aria-pressed="false">本轮暂停</button></div><button class="primary" id="apply-choice">加入输入框 <span>→</span></button><p class="action-note" id="action-note">只放进酒馆输入框，不会发送</p></footer>
+      </section>
+      <section id="outline-panel" role="tabpanel" aria-labelledby="outline-tab" hidden>
+        <h2 class="outline-heading">想玩什么故事？</h2><p class="intro">一个念头，也可以成为故事的开头。</p>
+        <label class="sr-only" for="story">想玩的故事</label><textarea id="story" rows="3" placeholder="想玩什么故事？"></textarea>
+        <label class="field-label" for="avoid">不想出现 <span>（可选）</span></label><textarea id="avoid" rows="2" placeholder="例如：不替我做决定"></textarea>
+        <div class="form-row"><label for="stage-total">阶段数量</label><div class="stepper frost"><button id="minus" aria-label="减少阶段数">−</button><input id="stage-total" type="number" min="1" value="12"><button id="plus" aria-label="增加阶段数">+</button></div></div>
+        <div class="form-row"><label for="origin">故事起点</label><select id="origin"><option>接着当前聊天</option><option>规划一个新故事</option></select></div>
+        <div class="form-row"><label for="display-mode">大纲展示</label><select id="display-mode"><option value="all">完整展开</option><option value="summary">只看概要</option><option value="current">逐阶段揭晓</option></select></div>
+        <button class="settings frost settings-entry" id="open-generation-settings" aria-haspopup="dialog"><span class="settings-entry-title">参考与生成设置 <span aria-hidden="true">↗</span></span><span id="settings-summary">跟随当前角色 · User 人设 · 世界书 2 本 · 酒馆主 API</span></button>
+        <p class="helper">按所选数量生成，先预览再采用；生成不会覆盖现有大纲。</p><button class="primary wide" id="preview-outline">生成大纲 <span>✧</span></button>
+        <label class="ref-switch"><input type="checkbox" id="plot-enabled" checked>在此聊天启用剧情引导</label><div class="divider"></div><div class="section-heading"><h3>正在使用</h3><span class="quiet">按聊天保存</span></div><button class="saved-outline frost" id="saved-outline"><span><strong>当前大纲</strong><small id="saved-count">12 个阶段 · 当前：争执</small></span><span>查看大纲 →</span></button>
+      </section>
+    </div>
+  </main></div>
+
+
+  <aside id="story-dock" class="story-dock" aria-label="剧情快捷工具" hidden>
+    <div class="dock-rail frost" aria-label="悬浮按键">
+      <button id="dock-toggle" aria-expanded="false" aria-controls="dock-panel"><span class="rail-line" aria-hidden="true"></span><span>剧情</span><small id="rail-stage">05</small></button>
+      <button id="dock-options" aria-expanded="false" aria-controls="dock-panel"><span class="rail-options-icon" aria-hidden="true">≋</span><span>选项</span><small id="rail-selected">1</small></button>
+    </div>
+    <section id="dock-panel" class="dock-panel" aria-label="剧情悬浮窗" hidden>
+      <header class="dock-header"><span>剧情随行</span><button id="dock-close" class="icon" aria-label="收起悬浮窗">›</button></header>
+      <div class="dock-stage"><div><button id="dock-stage-picker" aria-haspopup="dialog"><span id="dock-stage-count">第 5 / 12 阶段</span> <span aria-hidden="true">⌄</span></button><h2 id="dock-stage-title">争执</h2></div><div class="dock-arrows frost"><button id="dock-prev" aria-label="悬浮窗上一阶段">↑</button><button id="dock-next" aria-label="悬浮窗下一阶段">↓</button></div></div>
+      <p class="dock-description" id="dock-description"></p>
+      <div class="dock-section-title"><span>接下来怎么玩</span><button class="text-button" id="dock-reroll">↻ 换一批</button></div>
+      <div class="dock-options-scroll"><div id="dock-choices" role="group" aria-label="悬浮窗剧情方向，最多两个"></div></div>
+      <footer class="dock-footer"><div class="dock-selection"><span id="dock-selection-count" role="status">已选 1 / 2</span><button id="dock-clear" class="text-button">清空</button></div><button class="primary" id="dock-insert">输入 <span>↙</span></button><p id="dock-note">放入输入框，不会直接发送</p></footer>
+    </section>
+  </aside>
+  <dialog id="stage-dialog" aria-labelledby="stage-dialog-title"><div class="dialog-header"><div><p class="eyebrow">故事目录</p><h2 id="stage-dialog-title">选择一个阶段</h2></div><button class="icon close-dialog" aria-label="关闭阶段列表">×</button></div><label class="sr-only" for="stage-search">搜索阶段</label><input id="stage-search" class="search" type="search" placeholder="搜索阶段名或序号"><div class="stage-list" id="stage-list"></div></dialog>
+  <dialog id="guide-dialog" aria-labelledby="guide-dialog-title"><div class="dialog-header"><h2 id="guide-dialog-title">本轮剧情引导</h2><button class="icon close-dialog" aria-label="关闭引导预览">×</button></div><p class="helper">这里是本轮准备使用的内容。</p><pre id="guide-text"></pre></dialog>
+
+  <dialog id="edit-dialog" aria-labelledby="edit-title"><form id="edit-form"><div class="dialog-header"><h2 id="edit-title">编辑当前阶段</h2><button type="button" class="icon close-dialog" aria-label="关闭编辑">×</button></div><label class="field-label" for="edit-name">阶段标题</label><input id="edit-name" required maxlength="80"><label class="field-label" for="edit-description">阶段内容</label><textarea id="edit-description" rows="5" required></textarea><button class="text-button" type="button" id="rewrite-stage">让 AI 重写当前阶段</button><button class="primary wide" type="submit">保存阶段</button></form></dialog>
+  <dialog id="outline-dialog" aria-labelledby="outline-dialog-title"><div class="dialog-header"><div><p class="eyebrow">预览后再决定</p><h2 id="outline-dialog-title">大纲</h2></div><button class="icon close-dialog" aria-label="关闭大纲">×</button></div><div class="secondary-actions"><button id="add-stage" class="text-button">新增阶段 ＋</button><button id="adjust-future" class="text-button">按聊天调整后续</button></div><div id="outline-preview" class="stage-list"></div><button class="primary wide" id="adopt-outline">采用大纲</button></dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+
+
+<dialog id="request-dialog"><div class="dialog-header"><h2>正在创作</h2><button id="cancel-request" class="icon" aria-label="取消生成">×</button></div><p id="request-status" role="status">正在读取所选参考资料…</p><p class="helper">完成后先预览。关闭此窗会取消请求，已采用的大纲不变。</p></dialog>

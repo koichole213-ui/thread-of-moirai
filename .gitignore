@@ -1,0 +1,20 @@
+# Public source allowlist; local handoffs and attachments remain local.
+/*
+!/.gitignore
+!/README.md
+!/index.js
+!/manifest.json
+!/package.json
+!/style.css
+!/src/
+!/ui/
+!/tests/
+!/vendor/
+!/scripts/
+/scripts/*
+!/scripts/check.mjs
+!/scripts/package.py
+**/__pycache__/
+**/*.local
+**/.env*
+**/node_modules/
