@@ -1,2 +1,12 @@
-/* 天方匣 0.1.1-preview.1 — the approved interface is isolated in a shadow root. */
-#st-plot-root { position: fixed; inset: 0; z-index: 3000; pointer-events: none; }
+/* 天方匣 0.1.1-preview.2 — the approved interface is isolated in a shadow root. */
+#st-plot-root { position: fixed; inset: 0; z-index: 30000; pointer-events: none; }
+#st-plot-access { width: 100%; min-width: 0; }
+#st-plot-access .inline-drawer-header { display: flex; align-items: center; justify-content: space-between; width: 100%; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+#st-plot-access .inline-drawer-header b { overflow-wrap: anywhere; }
+#st-plot-access [hidden] { display: none !important; }
+#st-plot-access .inline-drawer-content { padding: 8px 6px; }
+#st-plot-access p { font-size: .9em; opacity: .8; line-height: 1.7; text-align: left; margin: 8px 0; }
+#st-plot-access .menu_button { width: 100%; min-height: 36px; white-space: normal; overflow-wrap: anywhere; font: inherit; }
+#st-plot-access label { display: flex; align-items: center; gap: 8px; margin: 12px 0; text-align: left; }
+#st-plot-access input[type=checkbox] { flex: none; }
+#st-plot-wand { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }

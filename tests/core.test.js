@@ -6,6 +6,14 @@ import { routeFor, Generator } from '../src/generation.js';
 import { RoundBridge, cleanPromptText } from '../src/rounds.js';
 import { TavernHost, chatIdentity } from '../src/host.js';
 import { buildApiRequest } from '../vendor/st-theater/api-client.js';
+import { normalizeAccess } from '../src/access.js';
+
+test('损坏入口偏好可恢复，位置越界被限制，不带入其他设置', () => {
+    for (const value of [null, undefined, false, 'bad']) assert.deepEqual(normalizeAccess(value), { visible: true, tuck: true, side: 'right', position: .4 });
+    assert.deepEqual(normalizeAccess({ visible: false, tuck: false, side: 'left', position: 9, primary: {} }), { visible: false, tuck: false, side: 'left', position: 1 });
+    assert.equal(normalizeAccess({ position: -8 }).position, 0);
+    assert.equal(normalizeAccess({ position: Infinity }).position, .4);
+});
 
 const stages = n => Array.from({ length: n }, (_, i) => ({ id: `s${i}`, title: `阶段${i}`, description: `阶段内容${i}` }));
 const story = () => ({ ...initialState(), stages: stages(3), currentId: 's1', story: '慢热', avoid: '不替玩家决定', choices: stages(5) });

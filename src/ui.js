@@ -2,6 +2,7 @@ import { VERSION, clone, uid, guide, currentStage, currentIndex, stageCount, mov
     selectChoice, adoptStages, removeStage, reorderStage, visibleStageName, replaceOwnedDraft } from './core.js';
 import { mountSettings } from './settings-ui.js';
 import { mountTabs } from './tabs.js';
+import { mountDock } from './dock.js';
 
 export async function mountUI(host, generator, getState, getSettings, setSettings, persist, baseURL) {
     const existing = document.getElementById('st-plot-root'); existing?.remove();
@@ -15,8 +16,15 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     root.append(style, surface); document.body.append(rootNode);
     const $ = s => root.querySelector(s), $$ = s => [...root.querySelectorAll(s)];
     const element = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
-    let toastTimer, dockOpen = false, pending = null, busy = false, requestSerial = 0, disposed = false, editorId = null, opener = null;
-    const toast = text => { $('#toast').textContent = text; $('#toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 4500); };
+    let toastTimer, dockOpen = false, pending = null, busy = false, requestSerial = 0, disposed = false, editorId = null;
+    let access = { visible: true, tuck: true, side: 'right', position: .4 }, accessChange = null, dock;
+    const toast = text => {
+        const message = $('#toast');
+        // Native modals are above ordinary page layers: keep feedback inside the active modal.
+        ($$('dialog[open]').at(-1) || surface).append(message);
+        message.textContent = text; message.classList.add('show'); clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => message.classList.remove('show'), 4500);
+    };
     const changed = (redraw = true) => { void persist().catch(() => toast('酒馆保存失败，当前草稿仍保留，请重试。')); if (redraw) render(); };
     const tabs = mountTabs(root);
     let previousOverflow = null;
@@ -27,14 +35,24 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     };
     const scrollObserver = new MutationObserver(syncScrollLock); scrollObserver.observe(root, { subtree: true, attributes: true, attributeFilter: ['open', 'hidden'] });
     function openDialog(id) { const dialog = $(id); if (!dialog.open) dialog.showModal(); }
-    function closeDock() { dockOpen = false; $('#dock-panel').hidden = true; for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).setAttribute('aria-expanded', 'false'); }
-    function openMain(tab = 0) { opener = root.activeElement || document.activeElement; closeDock(); $('#main-overlay').hidden = false; tabs.switchTab(tab); tabs.draw(); $('#close-main').focus(); }
-    function closeMain() { $('#main-overlay').hidden = true; opener?.focus?.(); }
+    function closeDock() { dockOpen = false; $('#dock-panel').hidden = true; for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).setAttribute('aria-expanded', 'false'); dock?.sync(access, !!host.identity() && !getState().storageError); }
+    function openMain(tab = 0) {
+        const main = $('#main-overlay');
+        closeDock(); main.hidden = false; if (!main.open) main.showModal();
+        tabs.switchTab(tab); tabs.draw(); $('#close-main').focus();
+    }
+    function closeMain() { const main = $('#main-overlay'); if (main.open) main.close(); main.hidden = true; }
+    $('#main-overlay').addEventListener('close', () => {
+        if ($('#main-overlay').open) return;
+        $('#main-overlay').hidden = true; if (!disposed) dock?.sync(access, !!host.identity() && !getState().storageError);
+    });
     function showDock(trigger) {
         dockOpen = !dockOpen; $('#dock-panel').hidden = !dockOpen; $('#dock-panel').dataset.opening = String(dockOpen);
         for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).setAttribute('aria-expanded', String(dockOpen));
+        dock?.sync(access, !!host.identity() && !getState().storageError);
         if (dockOpen) (trigger === 'dock-options' ? $('#dock-choices input') || $('#dock-close') : $('#dock-close')).focus();
     }
+    dock = mountDock(root, { isOpen: () => dockOpen || !!$('dialog[open]'), save: patch => accessChange?.(patch) });
     const openButton = element('button', '大纲与设置 ↗', 'text-button'); openButton.id = 'plot-open-main';
     $('.dock-header span').replaceWith(openButton); openButton.onclick = () => openMain(1);
     $('#close-main').onclick = closeMain;
@@ -197,7 +215,7 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     }
     function render() {
         const s = getState(), stage = currentStage(s), i = currentIndex(s), available = !!host.identity() && !s.storageError;
-        $('#story-dock').hidden = !available;
+        dock.sync(access, available);
         $('#chat-label').textContent = available ? `当前聊天 · ${host.getContext().name2 || '群聊'}` : '先打开酒馆聊天';
         for (const id of ['stage-count', 'dock-stage-count']) $(`#${id}`).textContent = stage ? `第 ${i + 1} / ${s.stages.length} 阶段` : '尚未规划阶段';
         for (const id of ['stage-title', 'dock-stage-title']) $(`#${id}`).textContent = stage?.title || '从一个故事念头开始';
@@ -224,6 +242,8 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     }
     render();
     return { toast, render, open: openMain,
+        setAccess(value) { access = value; if (!access.visible) closeDock(); dock.sync(access, !!host.identity() && !getState().storageError); },
+        onAccessChange(callback) { accessChange = callback; },
         reset() { cancel(); pending = null; $$('dialog[open]').forEach(d => d.close()); settingsUI.refresh(); closeDock(); render(); },
-        dispose() { disposed = true; cancel(); settingsUI.dispose(); tabs.dispose(); scrollObserver.disconnect(); if (previousOverflow !== null) document.body.style.overflow = previousOverflow; clearTimeout(toastTimer); document.removeEventListener('keydown', globalKeys); document.removeEventListener('pointerdown', outside); rootNode.remove(); } };
+        dispose() { disposed = true; cancel(); dock.dispose(); settingsUI.dispose(); tabs.dispose(); scrollObserver.disconnect(); if (previousOverflow !== null) document.body.style.overflow = previousOverflow; clearTimeout(toastTimer); document.removeEventListener('keydown', globalKeys); document.removeEventListener('pointerdown', outside); rootNode.remove(); } };
 }

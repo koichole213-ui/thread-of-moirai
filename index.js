@@ -1,8 +1,9 @@
-import { VERSION, initialState } from './src/core.js';
+import { initialState } from './src/core.js';
 import { TavernHost } from './src/host.js';
 import { Generator } from './src/generation.js';
 import { RoundBridge } from './src/rounds.js';
 import { mountUI } from './src/ui.js';
+import { mountAccess } from './src/access.js';
 
 export async function startPlot(host = new TavernHost(), transports) {
     let state = host.load(), settings = host.settings(), identity = host.identity();
@@ -23,10 +24,8 @@ export async function startPlot(host = new TavernHost(), transports) {
     for (const event of ['PERSONA_CHANGED', 'CHARACTER_EDITED', 'WORLDINFO_UPDATED', 'WORLDINFO_SETTINGS_UPDATED', 'OAI_PRESET_CHANGED_AFTER']) {
         off.push(host.on(event, () => { generator.cancel(); ui.reset(); }));
     }
-    const entry = document.createElement('button'); entry.id = 'st-plot-settings-entry'; entry.className = 'menu_button';
-    entry.textContent = `天方匣 ${VERSION} · 打开`; entry.onclick = () => ui.open(1);
-    (document.querySelector('#extensions_settings2') || document.querySelector('#extensions_settings'))?.append(entry);
-    return { open: ui.open, dispose() { generator.cancel(); rounds.dispose(); off.forEach(fn => fn()); ui.dispose(); entry.remove(); host.credentials.clear(); } };
+    const access = mountAccess(host, ui);
+    return { open: ui.open, dispose() { generator.cancel(); rounds.dispose(); off.forEach(fn => fn()); access.dispose(); ui.dispose(); host.credentials.clear(); } };
 }
 
 if (globalThis.SillyTavern?.getContext && !globalThis.__ST_PLOT_TEST__) {

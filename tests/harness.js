@@ -5,6 +5,11 @@ import { extractPreset, followReferences } from '../src/references.js';
 const handlers = new Map(), stores = { A: {}, B: {} }, chats = { A: [{ is_user: true, mes: '这是合成聊天的已发生事实。' }], B: [{ is_user: true, mes: '这是另一个故事。' }] };
 let which = 'A', routeLog = [], seed = 0;
 const pageErrors = [];
+if (new URLSearchParams(location.search).has('gestures')) {
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) document.addEventListener(type, e => {
+        if (e.composedPath().some(el => el.id === 'st-plot-root')) console.debug('fixture-pointer', type, e.clientX, e.clientY, e.isPrimary, e.button, e.pointerType);
+    }, true);
+}
 window.addEventListener('error', e => pageErrors.push(e.message));
 window.addEventListener('unhandledrejection', e => pageErrors.push(String(e.reason?.message || e.reason)));
 if (new URLSearchParams(location.search).get('test') === '1') for (const key of ['st-plot-harness-settings', 'st-plot-harness-A', 'st-plot-harness-B']) localStorage.removeItem(key);
@@ -45,6 +50,10 @@ const response = async (args, route) => {
     args.onChunk?.(text); await new Promise(r => setTimeout(r, 35)); return text;
 };
 let app = await startPlot(host, { main: args => response(args, 'main'), custom: args => response(args, 'secondary') });
+document.querySelector('#fixture-settings-toggle').onclick = () => { document.querySelector('#fixture-settings').hidden = false; };
+document.querySelector('#fixture-settings-close').onclick = () => { document.querySelector('#fixture-settings').hidden = true; };
+document.querySelector('#extensionsMenuButton').onclick = e => { e.stopPropagation(); const menu = document.querySelector('#extensionsMenu'); menu.hidden = !menu.hidden; };
+document.addEventListener('click', e => { if (!e.target.closest?.('#extensionsMenuButton')) document.querySelector('#extensionsMenu').hidden = true; });
 document.querySelector('#switch-a').onclick = () => switchChat('A'); document.querySelector('#switch-b').onclick = () => switchChat('B');
 document.querySelector('#send-test').onclick = async () => {
     await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
@@ -62,6 +71,30 @@ async function waitUntil(fn) { for (let i = 0; i < 100; i++) { if (fn()) return;
 
 async function verify() {
     results.textContent = '开始隔离浏览器验收';
+    check(getComputedStyle(document.getElementById('st-plot-root')).backgroundColor === 'rgba(0, 0, 0, 0)', '悬浮根层透明，不覆盖酒馆画面');
+    document.querySelector('#fixture-settings-toggle').click();
+    document.querySelector('#st-plot-access .inline-drawer-toggle').click();
+    const entry = document.querySelector('#st-plot-settings-entry');
+    check(entry.getBoundingClientRect().width > 200, '扩展入口不继承酒馆的窄按钮宽度');
+    entry.click();
+    check(q('#main-overlay').matches(':modal'), '扩展入口以顶层模态打开主面板');
+    const closeRect = q('#close-main').getBoundingClientRect();
+    check(document.elementFromPoint(closeRect.x + closeRect.width / 2, closeRect.y + closeRect.height / 2) === document.getElementById('st-plot-root'), '打开按钮不被4005层酒馆设置挡住');
+    click('#close-main'); await tick();
+    const toggleRect = q('#dock-toggle').getBoundingClientRect();
+    check(document.elementFromPoint(toggleRect.x + toggleRect.width / 2, toggleRect.y + toggleRect.height / 2) === document.getElementById('st-plot-root'), '悬浮条在酒馆设置上方可命中');
+    document.querySelector('#st-plot-dock-visible').click();
+    check(q('#story-dock').hidden && settings['st-plot-access'].visible === false, '关闭悬浮入口立即隐藏并独立保存');
+    document.querySelector('#extensionsMenuButton').click(); document.querySelector('#st-plot-wand').click();
+    await waitUntil(() => q('#main-overlay').open);
+    check(document.querySelector('#extensionsMenu').hidden, '隐藏悬浮后魔法棒仍能打开，并收起宿主菜单');
+    click('#close-main'); await tick();
+    document.querySelector('#st-plot-dock-visible').click();
+    await emit('APP_READY');
+    check(document.querySelectorAll('#st-plot-wand').length === 1 && document.querySelectorAll('#st-plot-access').length === 1, 'APP_READY重复挂接不产生重复入口');
+    q('#dock-drag').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    check(q('#story-dock').dataset.side === 'left', '键盘可将悬浮入口移到左侧');
+    document.querySelector('#fixture-settings-close').click();
     app.open(1); fill('#story', '合成慢热故事'); fill('#stage-total', '13');
     click('#preview-outline'); await waitUntil(() => q('#outline-dialog').open && !q('#adopt-outline').hidden);
     check(!stores.A['st-plot'].stages.length, '生成只预览，不覆盖旧大纲');
@@ -71,9 +104,10 @@ async function verify() {
     const choices = q('#choices').querySelectorAll('input'); choices[1].click();
     check(q('#dock-choices').querySelectorAll('input:checked').length === 2, '主面板与悬浮窗双选同步');
     q('#choices').querySelectorAll('input')[2].click(); check(q('#choices').querySelectorAll('input:checked').length === 2, '第三项被阻止');
+    check(q('#toast').closest('dialog') === q('#main-overlay'), '模态主面板内的提示仍可见');
     host.setDraft('我的原文'); click('#apply-choice'); check(host.getDraft().startsWith('我的原文\n\n'), '输入保留原文');
     const first = host.getDraft(); app.open(); click('#apply-choice'); check(host.getDraft() === first, '重复输入不重复引导');
-    check(document.activeElement.id === 'send_textarea', '输入后焦点回酒馆输入框');
+    await tick(); check(document.activeElement.id === 'send_textarea', '输入后包含延迟关闭事件的焦点仍在酒馆输入框');
     document.querySelector('#send-test').click(); await tick(); check(stores.A['st-plot'].selected.length === 0 && stores.A['st-plot'].currentId === stores.A['st-plot'].stages[0].id, '成功清理选择，阶段不自动推进');
     await switchChat('B'); check(q('#stage-count').textContent === '尚未规划阶段', 'B 聊天为空白独立状态');
     await switchChat('A'); check(q('#stage-count').textContent.includes('/ 13'), '切回 A 恢复大纲');
@@ -89,9 +123,11 @@ async function verify() {
     q('#ref-secondary-enabled').click(); fill('#ref-secondary-model', 'synthetic-side'); fill('#ref-secondary-url', 'https://example.com/v1');
     check(q('#ref-main-model').value === 'synthetic-main', '主副参数互不覆盖');
     click('#ref-route-main'); click('#ref-save'); await waitUntil(() => !q('#reference-dialog').open);
+    check(settings['st-plot-access'].side === 'left', '保存模型设置不覆盖悬浮位置');
     click('#play-tab'); click('#reroll'); await waitUntil(() => !q('#request-dialog').open); check(routeLog.at(-1).route === 'secondary', '换批实际使用副 API');
-    app.dispose(); await tick(); check(!document.getElementById('st-plot-root'), '卸载清理控件与事件'); check(pageErrors.length === 0, '包含延迟关闭事件的卸载没有页面异常');
+    app.dispose(); await tick(); check(!document.getElementById('st-plot-root') && !document.getElementById('st-plot-wand') && !document.getElementById('st-plot-access'), '卸载清理控件、魔法棒入口与事件'); check(pageErrors.length === 0, '包含延迟关闭事件的卸载没有页面异常');
     app = await startPlot(host, { main: args => response(args, 'main'), custom: args => response(args, 'secondary') });
+    check(q('#story-dock').dataset.side === 'left', '重新挂载恢复悬浮位置');
     check(q('#stage-count').textContent.includes('/ 13'), '重新挂载恢复聊天状态');
     check(document.querySelectorAll('#st-plot-root').length === 1, '重新挂载没有重复浮层');
     stores.B['st-plot'] = { version: 99 }; await switchChat('B');
