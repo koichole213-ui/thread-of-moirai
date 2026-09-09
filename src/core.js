@@ -1,4 +1,4 @@
-export const VERSION = '0.1.0';
+export const VERSION = '0.1.1-preview.1';
 export const KEY = 'st-plot';
 export const clone = value => structuredClone(value);
 export const uid = () => globalThis.crypto.randomUUID();
