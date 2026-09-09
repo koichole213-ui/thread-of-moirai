@@ -1,6 +1,16 @@
 import { startPlot } from '../index.js';
 import { TavernHost } from '../src/host.js';
 import { extractPreset, followReferences } from '../src/references.js';
+import { mountUpdater } from '../src/updates.js';
+
+// Reproduce a host chat layer while the extension's outer stylesheet is missing.
+if (new URLSearchParams(location.search).has('hostlayer')) {
+    const sheet = document.querySelector('link[href="../style.css"]').sheet;
+    for (let i = sheet.cssRules.length - 1; i >= 0; i--) if (sheet.cssRules[i].selectorText === '#st-plot-root') sheet.deleteRule(i);
+    const layerStyle = document.createElement('style');
+    layerStyle.textContent = 'body>main{position:fixed;inset:0 60px;max-width:none;z-index:30;background:#e8eef5;overflow:auto}';
+    document.head.append(layerStyle);
+}
 
 const handlers = new Map(), stores = { A: {}, B: {} }, chats = { A: [{ is_user: true, mes: '这是合成聊天的已发生事实。' }], B: [{ is_user: true, mes: '这是另一个故事。' }] };
 let which = 'A', routeLog = [], seed = 0;
@@ -99,6 +109,11 @@ async function verify() {
     click('#preview-outline'); await waitUntil(() => q('#outline-dialog').open && !q('#adopt-outline').hidden);
     check(!stores.A['st-plot'].stages.length, '生成只预览，不覆盖旧大纲');
     click('#adopt-outline'); check(q('#stage-count').textContent.includes('/ 13'), '采用 13 个阶段');
+    check(q('#action-note').hidden && !q('#action-note').textContent && q('#dock-note').hidden, '默认引导说明留空隐藏');
+    click('#pause'); check(!q('#action-note').hidden && !q('#dock-note').hidden && q('#dock-note').textContent === '本轮已暂停', '暂停提示主面板与悬浮同步可见');
+    click('#pause'); check(q('#action-note').hidden && q('#dock-note').hidden, '恢复后隐藏暂停提示');
+    q('input[name=mode][value=attach]').click(); check(q('#apply-choice').textContent.includes('下次发送时附带'), '附带模式按钮说明下次发送行为');
+    q('input[name=mode][value=input]').click();
     click('#reroll'); await waitUntil(() => q('#choices input')); check(q('#choices').querySelectorAll('input').length === 5, '真实生成入口显示五个候选');
     q('#choices input').click(); q('#choices input:nth-of-type(1)');
     const choices = q('#choices').querySelectorAll('input'); choices[1].click();
@@ -136,6 +151,17 @@ async function verify() {
     await switchChat('A');
     app.open(1); click('#open-generation-settings'); await waitUntil(() => q('#reference-dialog').open);
     click('#ref-model-tab'); click('#ref-route-custom');
+    check(!q('#ref-save-status').textContent.includes('未保存'), '自动保存连接不误报未保存');
+    const saveCredential = host.saveCredential, originalCredentialId = settings['st-plot'].primary.credentialId, originalCredential = host.credentials.get(originalCredentialId);
+    host.saveCredential = () => { throw new Error('synthetic save failure'); };
+    fill('#ref-main-key', 'synthetic-failed-key');
+    host.saveCredential = saveCredential;
+    fill('#ref-main-model', 'synthetic-after-key-failure');
+    check(q('#ref-save-status').textContent.includes('密钥未保存'), '模型自动保存不掩盖密钥保存失败');
+    click('#ref-save'); await tick(); check(q('#reference-dialog').open, '密钥未保存时不关闭设置或假报保存成功');
+    fill('#ref-main-key', 'synthetic-recovered-key');
+    check(!q('#ref-save-status').textContent.includes('未保存'), '重新填写密钥保存成功后解除失败状态');
+    check(settings['st-plot'].primary.credentialId !== originalCredentialId && host.credentials.get(originalCredentialId) === originalCredential, '密钥失败重试仍分离原凭据，不回写共享预设');
     fill('#ref-main-url', 'https://models.example.test/v1'); fill('#ref-main-key', 'synthetic-main-only');
     fill('#ref-secondary-key', 'synthetic-secondary-only');
     check(settings['st-plot'].primary.endpoint === 'https://models.example.test/v1', 'API 地址输入立即自动保存，不依赖聊天保存');
@@ -167,8 +193,14 @@ async function verify() {
     click('#ref-cancel'); await tick();
     click('#open-generation-settings'); await waitUntil(() => q('#reference-dialog').open);
     check(q('#ref-main-url').value === 'https://models.example.test/v1' && q('#ref-main-model').value === 'synthetic-b', '关闭设置不撤回已自动保存的连接');
+    check(q('#ref-save-status').textContent === '', '重开设置默认状态留空');
+    click('#ref-user-enabled'); check(q('#ref-save-status').textContent.includes('有未保存的调整'), '参考资料修改保留未保存提示');
+    click('#ref-route-main'); check(q('#ref-save-status').textContent.includes('有未保存的调整'), '连接自动保存不掩盖参考资料未保存状态');
     click('#ref-cancel'); click('#close-main'); await tick();
     click('#dock-toggle'); check(!q('#dock-stage-page').hidden && q('#dock-options-page').hidden, '阶段入口仅打开阶段页');
+    await new Promise(resolve => setTimeout(resolve, 450));
+    const panelRect = q('#dock-panel').getBoundingClientRect();
+    check(document.elementFromPoint(panelRect.x + panelRect.width / 2, panelRect.y + panelRect.height / 2) === document.getElementById('st-plot-root'), '悬浮展开页中心实际可命中，未被宿主聊天盖住');
     const stageHeight = q('#dock-panel').getBoundingClientRect().height;
     click('#dock-options'); check(q('#dock-stage-page').hidden && !q('#dock-options-page').hidden && !q('#dock-panel').hidden, '另一个悬浮入口切页而非关窗');
     check(q('#dock-panel').getBoundingClientRect().height === stageHeight, '阶段和选项共用相同高度外框');
@@ -189,6 +221,25 @@ async function verify() {
         failUI = false; document.getElementById('st-plot-settings-entry').click(); await waitUntil(() => document.getElementById('st-plot-root')?.shadowRoot.querySelector('#main-overlay').open);
         check(q('#main-overlay').open, '入口可重试加载并打开');
     } finally { window.fetch = fetchOriginal; }
+    const updateRoot = document.createElement('div');
+    updateRoot.innerHTML = '<button id="ref-check-update"></button><button id="ref-apply-update" hidden></button><button id="ref-reload-update" hidden></button><span id="ref-update-status"></span>';
+    const u = id => updateRoot.querySelector(id);
+    let resolveCheck, checks = 0, fail = false;
+    const updateUI = mountUpdater(updateRoot, { updater: {
+        check: () => { checks++; return new Promise(resolve => { resolveCheck = resolve; }); },
+        update: async () => { if (fail) throw new Error('合成更新失败'); },
+    }, canReload: () => false, reload: () => { throw new Error('不可刷新合成页'); } });
+    u('#ref-check-update').click(); u('#ref-check-update').click();
+    check(checks === 1 && u('#ref-check-update').disabled, '检查更新期间禁用重复点击');
+    resolveCheck({ isUpToDate: false, currentCommitHash: 'old' }); await tick();
+    check(!u('#ref-apply-update').hidden && u('#ref-update-status').textContent.includes('有更新'), '检查完成展示真正更新操作');
+    fail = true; u('#ref-apply-update').click(); await tick();
+    check(u('#ref-apply-update').hidden && !u('#ref-check-update').disabled && u('#ref-update-status').textContent === '合成更新失败', '更新失败保留错误并恢复检查入口');
+    u('#ref-check-update').click(); resolveCheck({ isUpToDate: false, currentCommitHash: 'old' }); await tick();
+    fail = false; u('#ref-apply-update').click(); await tick();
+    check(!u('#ref-reload-update').hidden && u('#ref-check-update').hidden, '更新完成展示刷新生效，不自动刷新');
+    u('#ref-reload-update').click(); check(u('#ref-update-status').textContent.includes('请先保存或取消'), '未保存修改阻止更新后的刷新');
+    updateUI.dispose();
     app.open(1); results.dataset.passed = 'true'; results.textContent += '\n全部浏览器验收完成';
 }
 if (new URLSearchParams(location.search).get('test') === '1') verify().catch(e => { results.textContent += '\nFAIL: ' + e.message; results.dataset.passed = 'false'; console.error(e); });

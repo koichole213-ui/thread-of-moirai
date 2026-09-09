@@ -1,4 +1,4 @@
-/* 摩伊之线 0.1.1-preview.3 — the approved interface is isolated in a shadow root. */
+/* 摩伊之线 0.1.1-preview.4 — the approved interface is isolated in a shadow root. */
 #st-plot-root { position: fixed; inset: 0; z-index: 30000; pointer-events: none; }
 #st-plot-access { width: 100%; min-width: 0; }
 #st-plot-access .inline-drawer-header { display: flex; align-items: center; justify-content: space-between; width: 100%; color: inherit; text-align: left; font: inherit; cursor: pointer; }

@@ -1,4 +1,4 @@
-export const VERSION = '0.1.1-preview.3';
+export const VERSION = '0.1.1-preview.4';
 export const KEY = 'st-plot';
 export const clone = value => structuredClone(value);
 // IDs are data identifiers, not secrets. LAN HTTP may not expose randomUUID.

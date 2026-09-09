@@ -7,6 +7,8 @@ import { mountDock } from './dock.js';
 export async function mountUI(host, generator, getState, getSettings, setSettings, persist, baseURL) {
     const existing = document.getElementById('st-plot-root'); existing?.remove();
     const rootNode = document.createElement('div'); rootNode.id = 'st-plot-root';
+    // Keep the dock above host chat layers even if the outer stylesheet is delayed or overridden.
+    Object.assign(rootNode.style, { position: 'fixed', inset: '0', zIndex: '30000', pointerEvents: 'none' });
     const root = rootNode.attachShadow({ mode: 'open' });
     const responses = await Promise.all(['ui/shell.html', 'ui/interface.css'].map(path => fetch(new URL(path, baseURL), { cache: 'no-store' })));
     if (responses.some(r => !r.ok)) throw new Error('界面文件读取失败。');
@@ -86,7 +88,7 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
             else toast('输入框的旧引导已修改，请在发送前核对；原文没有改变。');
         }
     }
-    const settingsUI = mountSettings(root, { host, getState, getSettings, toast,
+    const settingsUI = mountSettings(root, { host, getState, getSettings, toast, baseURL,
         saveConnections: patch => {
             const next = { ...getSettings(), ...clone(patch) }; host.saveSettings(next); setSettings(next); generator.cancel();
         },
@@ -240,10 +242,12 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
         $('#selection-caption').textContent = s.selected.length ? `已选 ${s.selected.length} / 2 · 按选择顺序衔接` : '可选 1–2 个方向';
         $('#dock-selection-count').textContent = `已选 ${s.selected.length} / 2`; $('#dock-clear').disabled = !s.selected.length;
         $('#pause').textContent = s.paused ? '恢复引导' : '本轮暂停'; $('#pause').setAttribute('aria-pressed', String(s.paused));
-        $('#apply-choice').textContent = s.mode === 'input' ? '加入输入框 →' : '附带此引导 →';
+        $('#apply-choice').textContent = s.mode === 'input' ? '加入输入框 →' : '下次发送时附带 →';
         $('#apply-choice').disabled = !stage || s.paused || !s.enabled; $('#dock-insert').disabled = !s.selected.length || s.paused || !s.enabled;
-        $('#action-note').textContent = !s.enabled ? '此聊天已关闭剧情引导' : s.paused ? '本轮已暂停引导' : '不会自动发送，也不会自动推进阶段';
-        $('#dock-note').textContent = s.paused ? '本轮已暂停' : '放入输入框，不会直接发送';
+        $('#action-note').textContent = !s.enabled ? '此聊天已关闭剧情引导' : s.paused ? '本轮已暂停引导' : '';
+        $('#action-note').hidden = !$('#action-note').textContent;
+        $('#dock-note').textContent = s.paused ? '本轮已暂停' : '';
+        $('#dock-note').hidden = !$('#dock-note').textContent;
         for (const [id, key] of [['story', 'storyDraft'], ['avoid', 'avoidDraft'], ['preference', 'preference'], ['stage-total', 'stageCount'], ['display-mode', 'display']]) if (root.activeElement !== $(`#${id}`)) $(`#${id}`).value = s[key];
         $('#origin').selectedIndex = s.origin === 'new' ? 1 : 0;
         $('#plot-enabled').checked = s.enabled; $('#edited-guide').checked = s.useEditedGuide; $('#rollback-notice').hidden = !s.rollbackNotice;

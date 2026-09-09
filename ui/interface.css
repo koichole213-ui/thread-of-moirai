@@ -205,6 +205,15 @@
 
 /* Runtime port of the approved interaction-layout preview. */
 [hidden]{display:none!important}
+#ref-save-status{display:block;white-space:pre-line}
+#ref-save-status:empty{display:none}
+#reference-dialog .ref-update-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;width:100%;font-size:11px;color:#657b93}
+#reference-dialog .ref-update-row [role=status]:empty{display:none}
+#reference-dialog .ref-update-row [role=status]{width:100%}
+#reference-dialog .ref-update-row>span:first-child{margin-right:auto;font-size:10px}
+#reference-dialog .ref-update-row .text-button{margin-left:0}
+#reference-dialog .ref-save-status:has(#ref-save-status:empty){display:none}
+#reference-dialog #ref-cancel{margin-left:auto}
 .shell>.header{padding:7px 20px 0;min-height:43px;gap:8px}
 .shell>.header>div{min-width:0}
 .shell>.header h1{font-size:18px;line-height:22px}
