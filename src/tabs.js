@@ -3,11 +3,11 @@ const tabBar=$('.tabs'),path=$('#sheet-shape'),svg=$('.tab-sheet'),tabs=$$('[rol
 const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)');
 let position=0,target=0,velocity=0,raf=0,lastTime=0,activeTab=0;
 function drawSheet(){
-  const w=tabBar.clientWidth,h=77,pad=parseFloat(getComputedStyle(tabBar).paddingLeft),buttonWidth=(w-2*pad)/2;
+  const w=tabBar.clientWidth,h=tabBar.clientHeight,pad=parseFloat(getComputedStyle(tabBar).paddingLeft),buttonWidth=(w-2*pad)/2;
   if(!w)return;
   const cx=pad+buttonWidth/2+position*buttonWidth;
   const stretch=Math.min(Math.abs(velocity)*7,13),half=buttonWidth*.40+stretch;
-  const l=cx-half,r=cx+half,shoulder=Math.min(22,l-2,w-r-2),top=9,base=h,corner=24;
+  const l=cx-half,r=cx+half,shoulder=Math.min(22,l-2,w-r-2),top=5,base=h,corner=Math.min(24,h/2);
   svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
   path.setAttribute('d',`M0 ${base} L${l-shoulder} ${base} Q${l} ${base} ${l} ${base-shoulder} L${l} ${top+corner} Q${l} ${top} ${l+corner} ${top} L${r-corner} ${top} Q${r} ${top} ${r} ${top+corner} L${r} ${base-shoulder} Q${r} ${base} ${r+shoulder} ${base} L${w} ${base} L${w} ${h+2} L0 ${h+2} Z`);
 }

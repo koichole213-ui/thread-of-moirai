@@ -134,6 +134,61 @@ async function verify() {
     check(!q('#stage-count').textContent.includes('/ 13'), '损坏 B 数据时不残留 A 的大纲');
     await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false); check(!ctx.injection, '损坏聊天不注入上一聊天引导');
     await switchChat('A');
+    app.open(1); click('#open-generation-settings'); await waitUntil(() => q('#reference-dialog').open);
+    click('#ref-model-tab'); click('#ref-route-custom');
+    fill('#ref-main-url', 'https://models.example.test/v1'); fill('#ref-main-key', 'synthetic-main-only');
+    fill('#ref-secondary-key', 'synthetic-secondary-only');
+    check(settings['st-plot'].primary.endpoint === 'https://models.example.test/v1', 'API 地址输入立即自动保存，不依赖聊天保存');
+    const persistedHost = new FixtureHost(() => ctx);
+    check(persistedHost.credentials.get(persistedHost.settings().primary.credentialId) === 'synthetic-main-only' && persistedHost.credentials.get(persistedHost.settings().secondary.credentialId) === 'synthetic-secondary-only', '新宿主恢复主副密钥且彼此独立');
+    click('#ref-main-preset-new'); fill('#ref-main-preset-name', '密钥隔离预设'); click('#ref-main-preset-create');
+    fill('#ref-main-key', 'synthetic-edited-only');
+    fill('#ref-secondary-api-preset', '密钥隔离预设');
+    check(host.credentials.get(settings['st-plot'].secondary.credentialId) === 'synthetic-main-only', '保存预设后再次编辑主密钥不改写预设或副连接');
+    fill('#ref-main-api-preset', '密钥隔离预设');
+    const fetchOriginal = window.fetch;
+    window.fetch = async (url, options) => {
+        if (url === 'https://models.example.test/v1/models') return new Response(JSON.stringify({data:[{id:'synthetic-a'},{id:'synthetic-b'}]}),{status:200});
+        return fetchOriginal(url, options);
+    };
+    try {
+        click('#ref-main-test'); await waitUntil(() => !q('#ref-main-model-select').hidden);
+        fill('#ref-main-model-select', 'synthetic-b');
+        check(settings['st-plot'].primary.model === 'synthetic-b', '模型列表下拉选择与手动输入同步自动保存');
+        let finishLate;
+        window.fetch = () => new Promise(resolve => { finishLate = resolve; });
+        click('#ref-main-test'); fill('#ref-main-url', 'https://changed.example.test/v1');
+        finishLate(new Response(JSON.stringify({data:[{id:'late-model'}]}), {status:200})); await tick();
+        check(q('#ref-main-model-select').hidden && settings['st-plot'].primary.model === 'synthetic-b', '换地址后旧模型列表晚到不会回写');
+        fill('#ref-main-url', 'https://models.example.test/v1');
+        click('#ref-main-key-clear');
+        check(!host.credentials.has(settings['st-plot'].primary.credentialId) && host.credentials.get(settings['st-plot'].secondary.credentialId) === 'synthetic-main-only', '同一预设清除主密钥不清除副密钥');
+    } finally { window.fetch = fetchOriginal; }
+    click('#ref-cancel'); await tick();
+    click('#open-generation-settings'); await waitUntil(() => q('#reference-dialog').open);
+    check(q('#ref-main-url').value === 'https://models.example.test/v1' && q('#ref-main-model').value === 'synthetic-b', '关闭设置不撤回已自动保存的连接');
+    click('#ref-cancel'); click('#close-main'); await tick();
+    click('#dock-toggle'); check(!q('#dock-stage-page').hidden && q('#dock-options-page').hidden, '阶段入口仅打开阶段页');
+    const stageHeight = q('#dock-panel').getBoundingClientRect().height;
+    click('#dock-options'); check(q('#dock-stage-page').hidden && !q('#dock-options-page').hidden && !q('#dock-panel').hidden, '另一个悬浮入口切页而非关窗');
+    check(q('#dock-panel').getBoundingClientRect().height === stageHeight, '阶段和选项共用相同高度外框');
+    click('#dock-options'); check(q('#dock-panel').hidden, '点击当前悬浮入口收起');
+    // Touch pointer semantics, including tap-versus-drag; real device checks remain separate.
+    const rail = q('.dock-rail'), handle = q('#dock-drag'), rect = rail.getBoundingClientRect();
+    const pointer = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {bubbles:true,composed:true,pointerId:71,pointerType:'touch',isPrimary:true,button:0,clientX:x,clientY:y}));
+    pointer(handle,'pointerdown',rect.x+20,rect.y+10); pointer(window,'pointermove',window.innerWidth-25,rect.y+45);
+    check(parseFloat(rail.style.left)>window.innerWidth/2, '触控拖动过程中可水平跟随');
+    pointer(window,'pointerup',window.innerWidth-25,rect.y+45);
+    check(settings['st-plot-access'].side === 'right', '触控松手后吸附并保存右侧');
+    app.dispose(); await tick();
+    let failUI = true;
+    window.fetch = async (url, options) => { if (String(url).endsWith('/ui/shell.html') && failUI) return new Response('', {status:503}); return fetchOriginal(url, options); };
+    try {
+        app = await startPlot(new FixtureHost(() => ctx), { main: args => response(args, 'main'), custom: args => response(args, 'secondary') });
+        check(!document.getElementById('st-plot-root') && !!document.getElementById('st-plot-settings-entry'), '主界面加载失败仍保留扩展入口');
+        failUI = false; document.getElementById('st-plot-settings-entry').click(); await waitUntil(() => document.getElementById('st-plot-root')?.shadowRoot.querySelector('#main-overlay').open);
+        check(q('#main-overlay').open, '入口可重试加载并打开');
+    } finally { window.fetch = fetchOriginal; }
     app.open(1); results.dataset.passed = 'true'; results.textContent += '\n全部浏览器验收完成';
 }
 if (new URLSearchParams(location.search).get('test') === '1') verify().catch(e => { results.textContent += '\nFAIL: ' + e.message; results.dataset.passed = 'false'; console.error(e); });

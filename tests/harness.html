@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>天方匣 · 隔离接入测试</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>摩伊之线 · 隔离接入测试</title>
 <style>body{font:14px/1.8 "Microsoft YaHei",sans-serif;background:#e8eef5;color:#40536a;margin:0;padding:24px}main{max-width:680px;margin:auto}button{padding:10px 16px;border:1px solid #ccd7e5;background:#fff;border-radius:12px;margin:5px;cursor:pointer}textarea{display:block;width:90%;min-height:100px;border:1px solid #ccd7e5;border-radius:15px;padding:14px;font:inherit}pre{white-space:pre-wrap;overflow-wrap:anywhere}.note{background:#fff9;border-radius:20px;padding:18px}#results{max-width:700px}
 /* Reproduce ST's narrow menu buttons and settings/menu stacking above 3000. */
 .menu_button{width:min-content;display:flex}.inline-drawer-header{background:#e4ebf4;border-radius:8px;padding:8px}.inline-drawer-content{display:none}
@@ -7,7 +7,7 @@
 #extensionsMenu{position:fixed;bottom:65px;left:10px;z-index:29999;background:#fff;padding:10px;border:1px solid #ccd7e5}
 [hidden]{display:none!important}
 </style><link rel="stylesheet" href="../style.css"></head>
-<body><main><h1>天方匣 · 隔离接入测试</h1><p class="note">这是正式插件代码的合成酒馆环境。角色、世界书、聊天和模型回复均为测试数据，不接触真实聊天，不请求创作 API。</p>
+<body><main><h1>摩伊之线 · 隔离接入测试</h1><p class="note">这是正式插件代码的合成酒馆环境。角色、世界书、聊天和模型回复均为测试数据，不接触真实聊天，不请求创作 API。</p>
 <button id="fixture-settings-toggle">模拟酒馆扩展设置</button><button id="extensionsMenuButton">模拟魔法棒</button><div id="extensionsMenu" hidden></div>
 <aside id="fixture-settings" hidden><button id="fixture-settings-close">关闭酒馆设置</button><h2>扩展设置（合成）</h2><div id="extensions_settings2"></div></aside>
 <button id="switch-a">切到合成聊天 A</button><button id="switch-b">切到合成聊天 B</button><button id="send-test">模拟成功回复</button><p id="chat-name">合成聊天 A</p>

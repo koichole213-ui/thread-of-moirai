@@ -11,13 +11,13 @@ export function normalizeAccess(value = {}) {
 // Interface preferences are independent of chat data and generation-setting drafts.
 export function mountAccess(host, ui) {
     const ctx = () => host.getContext();
-    let access = normalizeAccess(ctx().extensionSettings[accessKey]), timer;
+    let access = normalizeAccess(ctx().extensionSettings?.[accessKey]), timer;
     const wrapper = document.createElement('div'); wrapper.id = 'st-plot-access';
     wrapper.innerHTML = `<div class="inline-drawer">
-      <button type="button" class="inline-drawer-toggle inline-drawer-header" aria-expanded="false" aria-controls="st-plot-access-content"><b>天方匣 · 剧情推进</b><span aria-hidden="true">⌄</span></button>
+      <button type="button" class="inline-drawer-toggle inline-drawer-header" aria-expanded="false" aria-controls="st-plot-access-content"><b>摩伊之线 · 剧情推进</b><span aria-hidden="true">⌄</span></button>
       <div id="st-plot-access-content" class="inline-drawer-content" hidden>
         <p>规划故事、手动推进阶段，为下一轮选择方向。</p>
-        <button type="button" id="st-plot-settings-entry" class="menu_button menu_button_icon">打开天方匣 ↗</button>
+        <button type="button" id="st-plot-settings-entry" class="menu_button menu_button_icon">打开摩伊之线 ↗</button>
         <label><input id="st-plot-dock-visible" type="checkbox">显示条形悬浮入口</label>
         <label><input id="st-plot-dock-tuck" type="checkbox">闲置时贴边收纳</label>
         <button type="button" id="st-plot-dock-reset" class="menu_button">重置悬浮位置</button>
@@ -51,9 +51,9 @@ export function mountAccess(host, ui) {
     q('#st-plot-dock-visible').onchange = e => update({ visible: e.target.checked });
     q('#st-plot-dock-tuck').onchange = e => update({ tuck: e.target.checked });
     q('#st-plot-dock-reset').onclick = () => update({ side: 'right', position: .4 });
-    const wand = document.createElement('button'); wand.type = 'button'; wand.id = 'st-plot-wand';
+    const wand = document.createElement('div'); wand.id = 'st-plot-wand'; wand.tabIndex = 0; wand.setAttribute('role', 'button');
     wand.className = 'list-group-item flex-container flexGap5';
-    wand.innerHTML = '<span class="extensionsMenuExtensionButton fa-solid fa-box" aria-hidden="true"></span><span>天方匣</span>';
+    wand.innerHTML = '<span class="extensionsMenuExtensionButton fa-solid fa-box" aria-hidden="true"></span><span>摩伊之线</span>';
     wand.onclick = event => {
         event.stopPropagation();
         // Let the host close its own menu before opening a modal, as other ST extensions do.
@@ -61,11 +61,17 @@ export function mountAccess(host, ui) {
         else document.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         clearTimeout(timer); timer = setTimeout(() => ui.open(1), 150);
     };
+    wand.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); wand.click(); } };
+    const fallback = document.createElement('button'); fallback.id = 'st-plot-fallback'; fallback.textContent = '摩伊之线 · 打开'; fallback.onclick = () => ui.open(1);
     function attach() {
-        (document.querySelector('#extensions_settings2') || document.querySelector('#extensions_settings'))?.append(wrapper);
-        document.querySelector('#extensionsMenu')?.append(wand);
+        const settings = document.querySelector('#extensions_settings2') || document.querySelector('#extensions_settings'), menu = document.querySelector('#extensionsMenu');
+        if (settings && wrapper.parentNode !== settings) settings.append(wrapper);
+        if (menu && wand.parentNode !== menu) menu.append(wand);
+        if (!settings && !menu && !fallback.isConnected) document.body.append(fallback);
+        if ((settings || menu) && fallback.isConnected) fallback.remove();
     }
     const off = host.on('APP_READY', attach);
+    const observer = new MutationObserver(attach); observer.observe(document.body, { childList: true, subtree: true });
     attach(); ui.onAccessChange(update); render();
-    return { dispose() { clearTimeout(timer); off(); wrapper.remove(); wand.remove(); ui.onAccessChange(null); } };
+    return { dispose() { clearTimeout(timer); observer.disconnect(); off(); wrapper.remove(); wand.remove(); fallback.remove(); ui.onAccessChange(null); } };
 }

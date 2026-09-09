@@ -1,8 +1,8 @@
 
 
-  <dialog id="main-overlay" aria-label="天方匣主面板" hidden><main class="shell">
+  <dialog id="main-overlay" aria-label="摩伊之线主面板" hidden><main class="shell">
     <header class="header">
-      <div><h1>天方匣<span class="preview-tag">0.1.1-preview.2</span></h1><p id="chat-label">当前聊天</p></div>
+      <div><h1>摩伊之线<span class="preview-tag">0.1.1-preview.3</span></h1><p id="chat-label">当前聊天</p></div>
       <button class="icon frost" id="close-main" aria-label="关闭主面板">×</button>
     </header>
     <nav class="tabs" role="tablist" aria-label="剧情工具">
@@ -42,18 +42,24 @@
 
   <aside id="story-dock" class="story-dock" aria-label="剧情快捷工具" hidden>
     <div class="dock-rail frost" aria-label="悬浮按键">
-      <button id="dock-toggle" aria-expanded="false" aria-controls="dock-panel"><span class="rail-line" aria-hidden="true"></span><span>剧情</span><small id="rail-stage">05</small></button>
+      <button id="dock-toggle" aria-expanded="false" aria-controls="dock-panel"><span class="rail-line" aria-hidden="true"></span><span>阶段</span><small id="rail-stage">05</small></button>
       <button id="dock-options" aria-expanded="false" aria-controls="dock-panel"><span class="rail-options-icon" aria-hidden="true">≋</span><span>选项</span><small id="rail-selected">1</small></button>
     </div>
     <section id="dock-panel" class="dock-panel" aria-label="剧情悬浮窗" hidden>
-      <header class="dock-header"><span>剧情随行</span><button id="dock-close" class="icon" aria-label="收起悬浮窗">›</button></header>
+      <header class="dock-header"><span id="dock-page-heading">当前阶段</span><button id="dock-close" class="icon" aria-label="收起悬浮窗">›</button></header>
+      <div id="dock-stage-page" class="dock-page">
       <div class="dock-stage"><div><button id="dock-stage-picker" aria-haspopup="dialog"><span id="dock-stage-count">第 5 / 12 阶段</span> <span aria-hidden="true">⌄</span></button><h2 id="dock-stage-title">争执</h2></div><div class="dock-arrows frost"><button id="dock-prev" aria-label="悬浮窗上一阶段">↑</button><button id="dock-next" aria-label="悬浮窗下一阶段">↓</button></div></div>
       <p class="dock-description" id="dock-description"></p>
+      <button id="dock-open-outline" class="text-button dock-outline-link">打开完整大纲 ↗</button></div>
+      <div id="dock-options-page" class="dock-page" hidden>
       <div class="dock-section-title"><span>接下来怎么玩</span><button class="text-button" id="dock-reroll">↻ 换一批</button></div>
       <div class="dock-options-scroll"><div id="dock-choices" role="group" aria-label="悬浮窗剧情方向，最多两个"></div></div>
       <footer class="dock-footer"><div class="dock-selection"><span id="dock-selection-count" role="status">已选 1 / 2</span><button id="dock-clear" class="text-button">清空</button></div><button class="primary" id="dock-insert">输入 <span>↙</span></button><p id="dock-note">放入输入框，不会直接发送</p></footer>
+      </div>
     </section>
   </aside>
+
+
   <dialog id="stage-dialog" aria-labelledby="stage-dialog-title"><div class="dialog-header"><div><p class="eyebrow">故事目录</p><h2 id="stage-dialog-title">选择一个阶段</h2></div><button class="icon close-dialog" aria-label="关闭阶段列表">×</button></div><label class="sr-only" for="stage-search">搜索阶段</label><input id="stage-search" class="search" type="search" placeholder="搜索阶段名或序号"><div class="stage-list" id="stage-list"></div></dialog>
   <dialog id="guide-dialog" aria-labelledby="guide-dialog-title"><div class="dialog-header"><h2 id="guide-dialog-title">本轮剧情引导</h2><button class="icon close-dialog" aria-label="关闭引导预览">×</button></div><p class="helper">这里是本轮准备使用的内容。</p><pre id="guide-text"></pre></dialog>
 

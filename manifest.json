@@ -1,11 +1,11 @@
 {
-  "display_name": "天方匣",
+  "display_name": "摩伊之线",
   "loading_order": 100,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "koichole213-ui",
-  "version": "0.1.1-preview.2",
-  "homePage": "https://github.com/koichole213-ui/tianfangxia"
+  "version": "0.1.1-preview.3",
+  "homePage": "https://github.com/koichole213-ui/thread-of-moirai"
 }

@@ -29,25 +29,30 @@ export function mountDock(root, { isOpen, save }) {
         expand(); schedule();
     }
     function down(e) {
-        if (!e.isPrimary || e.button !== 0 || e.target === reveal) return;
+        if (!e.isPrimary || e.button !== 0 || e.target === reveal || gesture) return;
         suppressClick = false; clear();
-        gesture = { id: e.pointerId, x: e.clientX, y: e.clientY, top: rail.getBoundingClientRect().top, moved: false };
+        const rect = rail.getBoundingClientRect();
+        gesture = { id: e.pointerId, x: e.clientX, y: e.clientY, top: rect.top, left: rect.left, moved: false };
     }
     function move(e) {
         if (!gesture || gesture.id !== e.pointerId) return;
         if (!gesture.moved && Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) < 7) return;
-        if (!gesture.moved) { gesture.moved = true; rail.setPointerCapture(e.pointerId); }
+        if (!gesture.moved) { gesture.moved = true; try { rail.setPointerCapture(e.pointerId); } catch {} }
         e.preventDefault();
         const range = Math.max(1, window.innerHeight - rail.offsetHeight - 16);
         access = { ...access, side: e.clientX < window.innerWidth / 2 ? 'left' : 'right',
             position: Math.max(0, Math.min(1, (gesture.top + e.clientY - gesture.y - 8) / range)) };
-        place();
+        // Follow both axes during the gesture; snap only when released.
+        rail.style.right = 'auto';
+        rail.style.left = `${Math.max(0, Math.min(window.innerWidth - rail.offsetWidth, gesture.left + e.clientX - gesture.x))}px`;
+        rail.style.top = `${8 + access.position * range}px`;
     }
     function end(e) {
         if (!gesture || gesture.id !== e.pointerId) return;
         const moved = gesture.moved; gesture = null;
         if (rail.hasPointerCapture(e.pointerId)) rail.releasePointerCapture(e.pointerId);
-        if (moved) { suppressClick = true; save({ side: access.side, position: access.position }); }
+        rail.style.left = ''; rail.style.right = '';
+        if (moved) { suppressClick = true; place(); save({ side: access.side, position: access.position }); }
         schedule();
     }
     function click(e) {

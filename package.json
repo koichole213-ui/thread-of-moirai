@@ -1,6 +1,6 @@
 {
-  "name": "tianfangxia",
-  "version": "0.1.1-preview.2",
+  "name": "thread-of-moirai",
+  "version": "0.1.1-preview.3",
   "private": true,
   "type": "module",
   "scripts": {

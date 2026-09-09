@@ -7,6 +7,44 @@ import { RoundBridge, cleanPromptText } from '../src/rounds.js';
 import { TavernHost, chatIdentity } from '../src/host.js';
 import { buildApiRequest } from '../vendor/st-theater/api-client.js';
 import { normalizeAccess } from '../src/access.js';
+import { fetchModels } from '../src/models.js';
+
+test('模型目录沿用小剧场端点，主副两种格式、去重与失败处理', async () => {
+    for (const [endpoint, protocol, expected] of [['https://example.test/v1', 'openai', 'https://example.test/v1/models'], ['https://example.test/v1/chat/completions', 'openai', 'https://example.test/v1/models'], ['https://example.test/v1/messages', 'anthropic', 'https://example.test/v1/models']]) {
+        const result = await fetchModels({ endpoint, protocol }, 'synthetic-only', { request: async (url, options) => {
+            assert.equal(url, expected); assert.equal(options.method, 'GET');
+            assert.equal(protocol === 'openai' ? options.headers.Authorization : options.headers['x-api-key'], protocol === 'openai' ? 'Bearer synthetic-only' : 'synthetic-only');
+            return { ok: true, json: async () => ({ data: [{ id: 'b' }, 'a', 'a', null] }) };
+        } });
+        assert.deepEqual(result, ['a', 'b']);
+    }
+    await assert.rejects(fetchModels({ endpoint: 'https://example.test', protocol: 'openai' }, '', { request: async () => ({ ok: false, status: 401 }) }), /HTTP 401/);
+    await assert.rejects(fetchModels({ endpoint: 'https://example.test', protocol: 'openai' }, '', { request: async () => ({ ok: true, json: async () => [] }) }), /未返回可用模型/);
+    await assert.rejects(fetchModels({ endpoint: 'https://user:pass@example.test', protocol: 'openai' }), /API 地址/);
+});
+
+test('连接密钥跨宿主实例恢复、明确清除，不进入聊天或连接预设', () => {
+    const ctx = { extensionSettings: {}, saveSettingsDebounced() {}, chatMetadata: {} };
+    const host = new TavernHost(() => ctx), settings = initialSettings();
+    host.saveSettings(settings); host.saveCredential(settings.primary.credentialId, 'synthetic-only');
+    const restored = new TavernHost(() => ctx);
+    assert.equal(restored.credentials.get(restored.settings().primary.credentialId), 'synthetic-only');
+    assert(!JSON.stringify(ctx.extensionSettings['st-plot']).includes('synthetic-only')); assert.deepEqual(ctx.chatMetadata, {});
+    restored.saveCredential(settings.primary.credentialId, '');
+    assert.equal(new TavernHost(() => ctx).credentials.size, 0);
+});
+
+test('世界书服务器完整目录合并绑定与手选；失败保留目录，可取消失效书', async () => {
+    const oldFetch = globalThis.fetch;
+    const ctx = { extensionSettings: {}, worldInfoSettings: {}, getWorldInfoNames: () => ['绑定'], characters: [{ avatar: 'a.png', data: { extensions: { world: '绑定' } } }], characterId: 0, getCurrentChatId: () => 'chat', chatMetadata: {}, chat: [] };
+    const host = new TavernHost(() => ctx), config = initialSettings(); config.selectedBooks = ['已选'];
+    try {
+        globalThis.fetch = async (url, options) => { assert.equal(url, '/api/worldinfo/list'); assert.equal(options.method, 'POST'); return { ok: true, json: async () => [{ file_id: '其他书', name: '不同显示名称' }, { file_id: '绑定', name: '绑定' }] }; };
+        const refs = await host.referenceHeader(config); assert.deepEqual(new Set(refs.names), new Set(['绑定', '其他书', '已选']));
+        globalThis.fetch = async () => { throw new Error('offline'); };
+        assert((await host.referenceHeader(config)).names.includes('其他书'));
+    } finally { globalThis.fetch = oldFetch; }
+});
 
 test('损坏入口偏好可恢复，位置越界被限制，不带入其他设置', () => {
     for (const value of [null, undefined, false, 'bad']) assert.deepEqual(normalizeAccess(value), { visible: true, tuck: true, side: 'right', position: .4 });

@@ -203,6 +203,50 @@
 #plot-open-main{pointer-events:auto}.ref-filter-note{font-size:11px;color:#657b93;margin:8px 0}
 @media(max-width:420px){#main-overlay{padding:10px 8px}.shell{width:100%}}
 
+/* Runtime port of the approved interaction-layout preview. */
+[hidden]{display:none!important}
+.shell>.header{padding:7px 20px 0;min-height:43px;gap:8px}
+.shell>.header>div{min-width:0}
+.shell>.header h1{font-size:18px;line-height:22px}
+.shell>.header p{font-size:10px;line-height:14px;margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.shell>.header .icon{width:36px;height:36px}
+.shell .preview-tag{font-size:9px;padding:2px 6px;margin-left:7px}
+.shell>.tabs{height:46px;margin-top:0;padding:0 18px}
+.shell>.tabs>button{font-size:14px;padding-top:3px}
+.shell .tab-dot{bottom:5px}
+.preview-switch{flex-wrap:wrap;gap:3px}
+.preview-switch button{min-height:38px}
+.dock-panel{height:min(500px,calc(100dvh - 28px));top:max(14px,calc(50% - 250px));background:linear-gradient(135deg,#fafdfff7,#f2f8fef7)}
+.dock-header{background:linear-gradient(115deg,#d9eafa,#e5f1fc);padding:12px 16px 12px 20px;min-height:62px;gap:8px}
+.dock-header>span{font-size:14px;font-weight:550;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dock-header .icon{border-radius:50%;background:#ffffffa3;width:34px;height:34px}
+.dock-page{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;border-radius:23px 23px 0 0;margin-top:-6px;background:linear-gradient(125deg,#fbfdff,#f4f9ff);position:relative}
+#dock-stage-page{overflow:auto;overscroll-behavior:contain;padding-top:22px;scrollbar-width:thin}
+.dock-stage{align-items:center;gap:12px}
+.dock-stage h2{font-size:28px;margin-top:22px}
+.dock-stage>div>button{background:#e4f1fce0;border-radius:20px;padding:8px 12px;font-size:12px}
+.dock-arrows{gap:5px;background:none;border:0;box-shadow:none;width:40px;align-self:flex-end}
+.dock-arrows button{height:40px;border-radius:15px;background:#e5f1fcbd}
+.dock-arrows button+button{border:0}
+.dock-description{display:block!important;max-height:none;-webkit-line-clamp:unset;overflow:visible;font-size:13px;line-height:1.95;padding:20px 20px 24px;white-space:pre-line;overflow-wrap:anywhere}
+.dock-outline-link{margin: auto 20px 0;padding:19px 0;justify-content:center;border-radius:0;border-top:1px solid #dce7f0;flex-shrink:0;color:#42648c;font-size:12px;min-height:60px}
+#dock-options-page{padding-top:15px}
+.dock-section-title{border-top:0;padding:4px 0 10px}
+.dock-section-title>span{font-size:15px}
+.dock-section-title .text-button{background:#e4f0fb;border-radius:20px;padding-inline:11px;font-size:11px;min-height:34px}
+.dock-options-scroll{min-height:0;flex:1;padding-bottom:8px}
+.dock-panel .choice{min-height:62px;border-radius:17px;margin:4px 0;padding:10px}
+.dock-panel .choice-mark{border-radius:50%;width:23px;height:23px}
+.dock-panel .choice strong{font-size:13px;font-weight:500}
+.dock-panel .choice small{font-size:11px}
+.dock-panel .choice:has(input:checked){background:linear-gradient(115deg,#dceefbe8,#e8f3fcba)}
+.dock-footer{margin-top:0;padding-block:12px;min-height:81px}
+.dock-rail button[aria-expanded=true]{background:linear-gradient(125deg,#a9cffbba,#bbddff85);box-shadow:inset 0 1px 0 #fff;color:#36597e}
+
+@media(max-width:480px){.shell>.header{padding-inline:16px}.shell>.header p{max-width:220px}.dock-header{padding-inline:16px}.dock-stage h2{font-size:25px}.dock-description{padding-inline:16px}.dock-outline-link{margin-inline:16px}}
+@media(max-height:560px){.dock-panel{height:calc(100dvh - 20px);top:10px}.dock-header{min-height:52px;padding-block:9px}.dock-arrows{width:40px;flex-direction:column}.dock-arrows button+button{border:0}}
+@media(prefers-reduced-motion:reduce){.dock-panel{animation:none!important}}
+
 /* Host access and dock adjustments; also included by the local UI generator. */
 :host{background:transparent}
 #main-overlay{width:100%;height:100dvh;max-width:none;max-height:none;margin:0;border:0;border-radius:0;box-shadow:none;color:inherit;backdrop-filter:none}
@@ -218,3 +262,27 @@
 .story-dock[data-side=left] .dock-panel{right:auto;left:calc(var(--rail-width) + 10px);transform-origin:0 45%}
 @media(max-width:640px){.story-dock[data-side=left] .dock-panel{left:calc(var(--rail-width) + 7px)}}
 @media(max-height:400px){.dock-rail button{min-height:60px}}
+
+/* Full-screen shell, with bounded reading width on wide displays. */
+#main-overlay{padding:0;overflow:hidden;background:#edf5fc}
+#main-overlay .shell{width:100%;max-width:none;height:100%;min-height:0;border:0;border-radius:0;display:flex;flex-direction:column;box-shadow:none}
+#main-overlay .header,#main-overlay .tabs{flex-shrink:0}
+#main-overlay .paper{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;border-radius:0;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+#main-overlay .paper>section{max-width:960px;margin-inline:auto}
+#main-overlay .header{padding-top:max(7px,env(safe-area-inset-top))}
+#main-overlay .intro,#main-overlay .stage-meta>.quiet{display:none}
+#reference-dialog .ref-head .eyebrow,#reference-dialog .ref-subtitle{display:none}
+#reference-dialog .ref-head{padding-block:14px 4px}
+#reference-dialog .dialog-header{margin-bottom:8px}
+#reference-dialog .dialog-header h2{font-size:18px}
+#reference-dialog .ref-save-status{font-size:10px}
+#reference-dialog [id$="-model-select"]{width:100%;margin-top:8px}
+@media(min-width:900px){
+ #main-overlay .header{padding-inline:max(28px,calc((100% - 1000px)/2))}
+ #main-overlay .tabs{width:min(100%,1000px);align-self:center}
+ #main-overlay .paper{padding:24px 40px}
+ #choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
+ #main-overlay .stage-description{max-width:80ch}
+ #main-overlay textarea{max-height:40vh}
+}
+@media(max-width:480px){#main-overlay .paper{padding:16px 18px max(16px,env(safe-area-inset-bottom))}.shell>.header p{max-width:220px}#reference-dialog{max-height:96dvh}.ref-head{padding-inline:16px}}

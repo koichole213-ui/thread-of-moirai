@@ -16,9 +16,11 @@ export function cleanPromptText(text, segments, keep = null) {
 export class RoundBridge {
     constructor(host, state, changed, notify) {
         this.host = host; this.state = state; this.changed = changed; this.notify = notify; this.active = null;
-        this.off = [host.on('GENERATION_AFTER_COMMANDS', (...args) => this.start(...args)),
-            host.on('MESSAGE_SENT', () => this.sent()), host.on('MESSAGE_RECEIVED', (id, type) => this.received(id, type)),
-            host.on('GENERATION_STOPPED', () => this.end()), host.on('GENERATION_ENDED', () => {
+        this.off = [];
+        const subscribe = (...args) => { this.off.push(host.on(...args)); };
+        try { [subscribe('GENERATION_AFTER_COMMANDS', (...args) => this.start(...args)),
+            subscribe('MESSAGE_SENT', () => this.sent()), subscribe('MESSAGE_RECEIVED', (id, type) => this.received(id, type)),
+            subscribe('GENERATION_STOPPED', () => this.end()), subscribe('GENERATION_ENDED', () => {
                 // ST hides its stop button before emitting MESSAGE_RECEIVED for a completed stream.
                 // Keep the snapshot through that same event turn; an ended UI is not proof of success.
                 this.host.clearPrompt();
@@ -26,9 +28,10 @@ export class RoundBridge {
                 clearTimeout(this.endTimer);
                 this.endTimer = setTimeout(() => { if (this.active === active) this.end(); }, 0);
             }),
-            host.on('CHAT_COMPLETION_PROMPT_READY', data => this.filter(data)),
-            host.on('GENERATE_AFTER_COMBINE_PROMPTS', data => this.filter(data)),
-            host.on('MESSAGE_DELETED', () => { if (!this.active) { this.state().rollbackNotice = true; this.changed(); this.notify('聊天已回退，请核对当前阶段；阶段没有自动改变。'); } })];
+            subscribe('CHAT_COMPLETION_PROMPT_READY', data => this.filter(data)),
+            subscribe('GENERATE_AFTER_COMBINE_PROMPTS', data => this.filter(data)),
+            subscribe('MESSAGE_DELETED', () => { if (!this.active) { this.state().rollbackNotice = true; this.changed(); this.notify('聊天已回退，请核对当前阶段；阶段没有自动改变。'); } })];
+        } catch (error) { this.off.forEach(off => off()); throw error; }
     }
     start(type, options, dryRun) {
         if (dryRun) return;

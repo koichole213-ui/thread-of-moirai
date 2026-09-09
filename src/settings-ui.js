@@ -1,10 +1,24 @@
 // Host-backed settings; UI structure and interactions ported from the approved prototype.
 import { VERSION, clone, uid, stateKey as pairKey } from './core.js';
 import { followReferences, rememberEntries, presetChecked, extraCategory } from './references.js';
-export function mountSettings(root, { host, getState, getSettings, commit, toast }) {
+import { fetchModels } from './models.js';
+export function mountSettings(root, { host, getState, getSettings, commit, saveConnections, toast }) {
   const q = s => root.querySelector(s);
   let refs = null, openEpoch = 0, cards = {}, books = {}, presets = {}, pendingLoads = 0, saving = false;
   const stagedKeys = new Map();
+  const modelRequests = new Map();
+  function cancelModels(slot) {
+    modelRequests.get(slot)?.abort(); modelRequests.delete(slot);
+    const button = q(`#ref-${slot}-test`); if (button) { button.disabled = false; button.textContent = '拉取模型列表 ↓'; }
+    const select = q(`#ref-${slot}-model-select`); if (select) { select.hidden = true; select.replaceChildren(); }
+  }
+  function autoSaveConnections() {
+    try {
+      saveConnections({ route: draft.route, secondaryEnabled: draft.secondaryEnabled, primary: apiValues('main'), secondary: apiValues('secondary'), apiPresets: clone(draft.apiPresets) });
+      q('#ref-save-status').textContent = '连接参数已自动保存；参考资料调整请点保存设置。';
+      return true;
+    } catch { toast('连接参数未能保存，请重试。'); return false; }
+  }
   function flatten(settings) {
     const s = clone(settings), p = s.primary, b = s.secondary;
     return { ...s, card: 'current', origin: getState().origin, chatEnabled: getState().chatEnabled, chatCount: getState().chatCount,
@@ -46,16 +60,17 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
       <p id="ref-${slot}-preset-status" class="ref-muted" role="status"></p>
       <details class="ref-details ref-api-fields"><summary>连接参数 <span id="ref-${slot}-model-summary"></span></summary>
         <label class="ref-select-field">${label} API 地址<input id="ref-${slot}-url" type="url" placeholder="https://…/v1"></label>
-        <label class="ref-select-field">${label} API Key<input id="ref-${slot}-key" type="password" placeholder="本次页面会话使用，不写入聊天或预设" autocomplete="off"></label>
+        <label class="ref-select-field">${label} API Key<input id="ref-${slot}-key" type="password" placeholder="自动保存到酒馆插件设置" autocomplete="off"></label><button id="ref-${slot}-key-clear" class="text-button">清除密钥</button>
         <div class="ref-field-pair"><label class="ref-select-field">${label} API 请求格式<select id="ref-${slot}-protocol"><option value="openai">OpenAI 兼容</option><option value="anthropic">Anthropic</option><option value="auto">自动识别</option></select></label><label class="ref-select-field">${label} API 模型<input id="ref-${slot}-model" placeholder="填写模型名称"></label></div>
-        <div class="ref-controls"><button id="ref-${slot}-test" class="text-button">检查连接参数 ↗</button><label class="ref-switch"><input id="ref-${slot}-stream" type="checkbox" role="switch">流式显示</label></div>
-        <p class="ref-muted">API 预设保存地址、模型与请求格式；密钥只在本次页面会话中保留，刷新后需重新填写。独立 API 由浏览器直连，服务需允许跨域访问。</p><p id="ref-${slot}-api-status" class="ref-save-toast" role="status"></p>
+        <select id="ref-${slot}-model-select" aria-label="${label} API 模型列表" hidden></select>
+        <div class="ref-controls"><button id="ref-${slot}-test" class="text-button">拉取模型列表 ↓</button><label class="ref-switch"><input id="ref-${slot}-stream" type="checkbox" role="switch">流式显示</label></div>
+        <details class="ref-details"><summary>连接与保存说明</summary><p class="ref-muted">连接参数和密钥自动保存到酒馆插件设置，刷新后保留；不写入聊天。留空保留已存密钥，清除请点“清除密钥”。拉取列表由浏览器直连服务；不支持列表的接口仍可手动填模型。</p></details><p id="ref-${slot}-api-status" class="ref-save-toast" role="status"></p>
       </details>`;
   };
   const dialog = document.createElement('dialog');
   dialog.id = 'reference-dialog'; dialog.setAttribute('aria-labelledby', 'reference-title');
   dialog.innerHTML = `
-    <header class="ref-head"><div class="dialog-header"><div><p class="eyebrow">让故事有据可依</p><h2 id="reference-title">参考与生成设置</h2></div><button id="ref-close" class="icon" aria-label="关闭设置，不保存修改">×</button></div><p class="ref-subtitle">带上需要的设定，其余的，留给故事慢慢展开。</p></header>
+    <header class="ref-head"><div class="dialog-header"><div><p class="eyebrow">让故事有据可依</p><h2 id="reference-title">参考与生成设置</h2></div><button id="ref-close" class="icon" aria-label="关闭设置">×</button></div><p class="ref-subtitle">带上需要的设定，其余的，留给故事慢慢展开。</p></header>
     <nav class="ref-tabs" role="tablist" aria-label="参考与生成设置分类"><button id="ref-material-tab" role="tab" aria-selected="true" aria-controls="ref-material-panel">参考资料</button><button id="ref-model-tab" role="tab" aria-selected="false" aria-controls="ref-model-panel" tabindex="-1">模型与预设</button></nav>
     <div class="ref-scroll">
       <section id="ref-material-panel" role="tabpanel" aria-labelledby="ref-material-tab">
@@ -104,7 +119,7 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
         <section class="ref-section"><div class="ref-section-title"><span>03</span><h3>本次会带上什么</h3></div><p class="ref-muted">生成时按此配置读取。内容只用于本插件，不修改原资料。</p><div id="ref-request-summary" class="ref-review"></div></section>
       </section>
     </div>
-    <footer class="ref-footer"><p class="ref-save-status"><span>天方匣 ${VERSION}</span><br><span id="ref-save-status" role="status">设置交给酒馆保存<br>密钥仅本次会话有效</span></p><button id="ref-cancel" class="text-button">取消</button><button id="ref-save" class="primary">保存设置 <span>✓</span></button></footer>`;
+    <footer class="ref-footer"><p class="ref-save-status"><span>摩伊之线 ${VERSION}</span><br><span id="ref-save-status" role="status">设置交给酒馆保存<br>连接参数自动保存</span></p><button id="ref-cancel" class="text-button">取消</button><button id="ref-save" class="primary">保存设置 <span>✓</span></button></footer>`;
   root.append(dialog);
   const shortcut = document.createElement('button');
   shortcut.id = 'show-references'; shortcut.textContent = '参考与生成'; shortcut.setAttribute('aria-haspopup', 'dialog');
@@ -233,7 +248,7 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
     const values = apiValues(slot), select = q(`#ref-${slot}-api-preset`); select.replaceChildren();
     draft.apiPresets.forEach(profile => { const option = element('option', '', profile.name); option.value = profile.name; select.append(option); });
     select.value = values.name; q(`#ref-${slot}-protocol`).value = values.protocol; q(`#ref-${slot}-model`).value = values.model; q(`#ref-${slot}-stream`).checked = values.stream;
-    q(`#ref-${slot}-url`).value = values.endpoint; q(`#ref-${slot}-key`).value = ''; q(`#ref-${slot}-key`).placeholder = stagedKeys.has(values.credentialId) || host.credentials.has(values.credentialId) ? '本次会话已填写；留空保留' : '本次页面会话使用，不写入聊天或预设';
+    q(`#ref-${slot}-url`).value = values.endpoint; q(`#ref-${slot}-key`).value = ''; q(`#ref-${slot}-key`).placeholder = host.credentials.has(values.credentialId) ? '已保存密钥；留空保留' : '自动保存到酒馆插件设置';
     q(`#ref-${slot}-model-summary`).textContent = values.model;
   }
   function updateApiRouting() {
@@ -251,11 +266,12 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
     const profile = { ...apiValues(slot), name };
     const index = draft.apiPresets.findIndex(p => p.name === name);
     if (index < 0) draft.apiPresets.push(profile); else draft.apiPresets[index] = profile;
+    stagedKeys.clear(); // Further edits must detach from the newly saved preset.
     setApiValues(slot, profile);
     renderApiSlot('main'); renderApiSlot('secondary');
     q(`#ref-${slot}-preset-form`).hidden = true;
-    status.textContent = `「${name}」已加入设置草稿，点底部「保存设置」后保留。`;
     dirty(); updateApiRouting();
+    status.textContent = autoSaveConnections() ? `「${name}」已保存。` : `「${name}」尚未保存，请重试。`;
   }
   function renderChat() {
     q('#ref-chat-enabled').checked = draft.chatEnabled; q('#ref-chat-count').value = draft.chatCount; q('#ref-chat-count').disabled = !draft.chatEnabled;
@@ -264,7 +280,7 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
     q('#ref-chat-preview').textContent = draft.chatEnabled && draft.chatCount > 0 ? refs.chat.slice(-draft.chatCount).map(m => `${m.role === 'user' ? refs.user : refs.name}：${m.content}`).join('\n\n') : '本次不带聊天前文。';
   }
   function dirty() {
-    q('#ref-save-status').textContent = '有未保存的调整 · 保存后下次沿用\n关闭或取消会放弃本次修改';
+    q('#ref-save-status').textContent = '有未保存的调整 · 保存后下次沿用\n连接已自动保存；其余调整需保存';
     updateSummary();
   }
   function selectTab(index) {
@@ -289,10 +305,10 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
     q('#ref-book-search').value = ''; q('#ref-preset').value = draft.preset;
     for (const slot of ['main', 'secondary']) { q(`#ref-${slot}-api-status`).textContent = ''; q(`#ref-${slot}-preset-status`).textContent = ''; q(`#ref-${slot}-preset-form`).hidden = true; }
     q('#ref-library-search').value = ''; libraryScope = 'all'; libraryPage = 0; entryLimit = 20;
-    q('#ref-follow-note').textContent = '跟随酒馆当前角色和 User 人设，修改只用于本插件。';
+    q('#ref-follow-note').textContent = refs.catalogWarning ? '完整世界书目录暂未读取成功；可关闭设置后重试。' : '';
     const failed = draft.selectedBooks.filter(name => !Object.hasOwn(refs.books, name));
     if (failed.length) q('#ref-follow-note').textContent = `有 ${failed.length} 本所选世界书未能读取，请在书库取消选择或关闭后重试。`;
-    q('#ref-save-status').textContent = '设置交给酒馆保存；密钥仅本次会话有效。\n关闭或取消会放弃本次调整。';
+    q('#ref-save-status').textContent = '连接参数自动保存；参考资料调整请点保存设置。';
     dialog.querySelectorAll('details').forEach(d => { d.open = false; });
     renderPeople(); renderBooks(); renderPreset(); renderRoute(); renderChat(); selectTab(0);
     if (!dialog.open) dialog.showModal();
@@ -335,25 +351,60 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
   q('#ref-chat-enabled').onchange = e => { draft.chatEnabled = e.target.checked; renderChat(); dirty(); };
   q('#ref-chat-count').onchange = e => { const n = Number(e.target.value); draft.chatCount = Number.isFinite(n) ? Math.max(0, Math.min(1000, Math.round(n))) : 20; renderChat(); dirty(); };
   q('#ref-origin').onchange = e => { draft.origin = e.target.value; draft.chatEnabled = draft.origin === 'continue'; renderChat(); dirty(); };
-  for (const route of ['main', 'custom']) q(`#ref-route-${route}`).onclick = () => { draft.route = route; renderRoute(); dirty(); };
-  q('#ref-secondary-enabled').onchange = e => { draft.secondaryEnabled = e.target.checked; renderRoute(); dirty(); };
+  for (const route of ['main', 'custom']) q(`#ref-route-${route}`).onclick = () => { draft.route = route; renderRoute(); dirty(); autoSaveConnections(); };
+  q('#ref-secondary-enabled').onchange = e => { draft.secondaryEnabled = e.target.checked; renderRoute(); dirty(); autoSaveConnections(); };
   for (const slot of ['main', 'secondary']) {
     q(`#ref-${slot}-api-preset`).onchange = e => {
       const profile = draft.apiPresets.find(p => p.name === e.target.value);
+      cancelModels(slot); stagedKeys.delete(slot);
       if (profile) setApiValues(slot, profile);
-      renderApiSlot(slot); q(`#ref-${slot}-preset-status`).textContent = '已载入预设；另一组连接保持不变。'; q(`#ref-${slot}-api-status`).textContent = ''; updateApiRouting(); dirty();
+      renderApiSlot(slot); q(`#ref-${slot}-preset-status`).textContent = '已载入预设；另一组连接保持不变。'; q(`#ref-${slot}-api-status`).textContent = ''; updateApiRouting(); dirty(); autoSaveConnections();
     };
-    for (const field of ['protocol', 'model', 'stream', 'url']) q(`#ref-${slot}-${field}`).onchange = e => {
+    for (const field of ['protocol', 'model', 'stream', 'url']) q(`#ref-${slot}-${field}`)[['url', 'model'].includes(field) ? 'oninput' : 'onchange'] = e => {
+      if (field === 'url' || field === 'protocol') cancelModels(slot);
       const values = apiValues(slot); values[field === 'url' ? 'endpoint' : field] = field === 'stream' ? e.target.checked : e.target.value; setApiValues(slot, values);
-      q(`#ref-${slot}-model-summary`).textContent = values.model; q(`#ref-${slot}-preset-status`).textContent = '当前参数已调整；可以保存到原预设，也可以另存一份。'; updateApiRouting(); dirty();
+      q(`#ref-${slot}-model-summary`).textContent = values.model; q(`#ref-${slot}-preset-status`).textContent = '当前参数已调整；可以保存到原预设，也可以另存一份。'; updateApiRouting(); dirty(); autoSaveConnections();
     };
     q(`#ref-${slot}-preset-update`).onclick = () => saveApiPreset(slot);
     q(`#ref-${slot}-preset-new`).onclick = () => { q(`#ref-${slot}-preset-form`).hidden = false; q(`#ref-${slot}-preset-name`).value = ''; q(`#ref-${slot}-preset-name`).focus(); };
     q(`#ref-${slot}-preset-cancel`).onclick = () => { q(`#ref-${slot}-preset-form`).hidden = true; q(`#ref-${slot}-preset-new`).focus(); };
     q(`#ref-${slot}-preset-create`).onclick = () => saveApiPreset(slot, q(`#ref-${slot}-preset-name`).value);
     q(`#ref-${slot}-preset-name`).onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); saveApiPreset(slot, e.target.value); } };
-    q(`#ref-${slot}-key`).oninput = e => { const values = apiValues(slot); values.credentialId = uid(); stagedKeys.set(values.credentialId, e.target.value); setApiValues(slot, values); dirty(); };
-    q(`#ref-${slot}-test`).onclick = () => { let ok = false; try { const p = apiValues(slot), u = new URL(p.endpoint); ok = ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password && !!p.model.trim(); } catch {} q(`#ref-${slot}-api-status`).textContent = ok ? '地址与模型已填写；实际可用性在生成时确认。本次未发送模型请求。' : '请填写有效的 HTTP(S) 地址和模型名称。'; };
+    q(`#ref-${slot}-key`).oninput = e => {
+      cancelModels(slot); if (!e.target.value) return;
+      const values = apiValues(slot);
+      // Detach from a shared preset once per editing session, not once per keystroke.
+      if (!stagedKeys.has(slot)) { values.credentialId = uid(); stagedKeys.set(slot, values.credentialId); }
+      try { host.saveCredential(values.credentialId, e.target.value.trim()); setApiValues(slot, values); autoSaveConnections(); }
+      catch { toast('密钥未能保存，请重试。'); }
+    };
+    q(`#ref-${slot}-key-clear`).onclick = () => {
+      cancelModels(slot);
+      const previous = apiValues(slot); setApiValues(slot, { ...previous, credentialId: uid() });
+      if (autoSaveConnections()) { stagedKeys.delete(slot); q(`#ref-${slot}-key`).value = ''; renderApiSlot(slot); toast('已清除当前连接密钥；已保存的独立预设保持不变。'); }
+      else setApiValues(slot, previous);
+    };
+    q(`#ref-${slot}-model-select`).onchange = e => {
+      if (!e.target.value) return;
+      q(`#ref-${slot}-model`).value = e.target.value; q(`#ref-${slot}-model`).dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    q(`#ref-${slot}-test`).onclick = async () => {
+      cancelModels(slot); const controller = new AbortController(), epoch = openEpoch;
+      modelRequests.set(slot, controller); const button = q(`#ref-${slot}-test`), status = q(`#ref-${slot}-api-status`);
+      button.disabled = true; button.textContent = '正在拉取…'; status.textContent = '';
+      const timer = setTimeout(() => controller.abort(), 20000);
+      try {
+        const profile = apiValues(slot), models = await fetchModels(profile, host.credentials.get(profile.credentialId) || '', { signal: controller.signal });
+        if (epoch !== openEpoch || controller.signal.aborted || modelRequests.get(slot) !== controller) return;
+        const select = q(`#ref-${slot}-model-select`); select.replaceChildren(element('option', '', '选择模型…'));
+        select.firstChild.value = '';
+        for (const model of models) { const option = element('option', '', model); option.value = model; select.append(option); }
+        select.value = models.includes(apiValues(slot).model) ? apiValues(slot).model : ''; select.hidden = false;
+        status.textContent = `找到 ${models.length} 个模型。`;
+      } catch (error) {
+        if (epoch === openEpoch && modelRequests.get(slot) === controller) status.textContent = controller.signal.aborted ? '读取超时，请重试。' : /^(请先|API 地址|Anthropic|模型列表|接口未返回)/.test(error.message) ? error.message : '拉取失败，请检查连接或跨域支持；仍可手动填写模型。';
+      } finally { clearTimeout(timer); if (modelRequests.get(slot) === controller) { modelRequests.delete(slot); button.disabled = false; button.textContent = '拉取模型列表 ↓'; } }
+    };
   }
   q('#ref-preset').onchange = e => { draft.preset = e.target.value; renderPreset(); dirty(); };
   function savedSummary() {
@@ -363,19 +414,18 @@ export function mountSettings(root, { host, getState, getSettings, commit, toast
   q('#ref-save').onclick = async () => {
     if (saving || pendingLoads) return;
     if (!refs || refs.identity !== host.identity()) { toast('聊天已切换，请重新打开设置。'); closeSettings(); return; }
-    const snapshot = clone(draft), config = unflatten(snapshot), keys = new Map(stagedKeys), epoch = openEpoch;
-    saving = true; saveAvailability(); q('#ref-cancel').disabled = true; q('#ref-close').disabled = true;
+    const snapshot = clone(draft), config = unflatten(snapshot), epoch = openEpoch;
+    saving = true; saveAvailability(); q('.ref-scroll').inert = true; q('#ref-cancel').disabled = true; q('#ref-close').disabled = true;
     try {
       await commit(config, { origin: snapshot.origin, chatEnabled: snapshot.chatEnabled, chatCount: snapshot.chatCount });
       if (epoch !== openEpoch || refs.identity !== host.identity()) return;
-      for (const [id, key] of keys) host.credentials.set(id, key);
       saved = snapshot; savedSummary(); saving = false; closeSettings(); toast('设置已交给酒馆保存');
     } catch { toast('设置未能保存，本次草稿仍保留，请重试。'); }
-    finally { saving = false; saveAvailability(); for (const id of ['ref-cancel', 'ref-close']) { const button = q(`#${id}`); if (button) button.disabled = false; } }
+    finally { saving = false; const scroll = q('.ref-scroll'); if (scroll) scroll.inert = false; saveAvailability(); for (const id of ['ref-cancel', 'ref-close']) { const button = q(`#${id}`); if (button) button.disabled = false; } }
   };
   q('#origin').addEventListener('change', () => { getState().origin = q('#origin').selectedIndex === 1 ? 'new' : 'continue'; getState().chatEnabled = getState().origin === 'continue'; });
   function refresh() { openEpoch++; if (dialog.open) dialog.close(); saved = flatten(getSettings()); savedSummary(); }
-  dialog.addEventListener('close', () => { openEpoch++; stagedKeys.clear(); for (const slot of ['main', 'secondary']) { const input = q(`#ref-${slot}-key`); if (input) input.value = ''; } });
+  dialog.addEventListener('close', () => { openEpoch++; stagedKeys.clear(); for (const slot of ['main', 'secondary']) { cancelModels(slot); const input = q(`#ref-${slot}-key`); if (input) input.value = ''; } });
   savedSummary();
-  return { open: openSettings, refresh, dispose: () => { openEpoch++; dialog.remove(); stagedKeys.clear(); } };
+  return { open: openSettings, refresh, dispose: () => { openEpoch++; for (const slot of ['main', 'secondary']) cancelModels(slot); dialog.remove(); stagedKeys.clear(); } };
 }

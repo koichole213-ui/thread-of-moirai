@@ -13,3 +13,27 @@
 .story-dock[data-side=left] .dock-panel{right:auto;left:calc(var(--rail-width) + 10px);transform-origin:0 45%}
 @media(max-width:640px){.story-dock[data-side=left] .dock-panel{left:calc(var(--rail-width) + 7px)}}
 @media(max-height:400px){.dock-rail button{min-height:60px}}
+
+/* Full-screen shell, with bounded reading width on wide displays. */
+#main-overlay{padding:0;overflow:hidden;background:#edf5fc}
+#main-overlay .shell{width:100%;max-width:none;height:100%;min-height:0;border:0;border-radius:0;display:flex;flex-direction:column;box-shadow:none}
+#main-overlay .header,#main-overlay .tabs{flex-shrink:0}
+#main-overlay .paper{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;border-radius:0;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+#main-overlay .paper>section{max-width:960px;margin-inline:auto}
+#main-overlay .header{padding-top:max(7px,env(safe-area-inset-top))}
+#main-overlay .intro,#main-overlay .stage-meta>.quiet{display:none}
+#reference-dialog .ref-head .eyebrow,#reference-dialog .ref-subtitle{display:none}
+#reference-dialog .ref-head{padding-block:14px 4px}
+#reference-dialog .dialog-header{margin-bottom:8px}
+#reference-dialog .dialog-header h2{font-size:18px}
+#reference-dialog .ref-save-status{font-size:10px}
+#reference-dialog [id$="-model-select"]{width:100%;margin-top:8px}
+@media(min-width:900px){
+ #main-overlay .header{padding-inline:max(28px,calc((100% - 1000px)/2))}
+ #main-overlay .tabs{width:min(100%,1000px);align-self:center}
+ #main-overlay .paper{padding:24px 40px}
+ #choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
+ #main-overlay .stage-description{max-width:80ch}
+ #main-overlay textarea{max-height:40vh}
+}
+@media(max-width:480px){#main-overlay .paper{padding:16px 18px max(16px,env(safe-area-inset-bottom))}.shell>.header p{max-width:220px}#reference-dialog{max-height:96dvh}.ref-head{padding-inline:16px}}

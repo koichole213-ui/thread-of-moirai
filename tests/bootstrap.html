@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>摩伊之线 · 启动兼容检查</title><link rel="stylesheet" href="../style.css">
+<body><h1>启动兼容检查</h1><p>只使用合成宿主：延迟就绪、无聊天、无 randomUUID。不连接真实酒馆。</p><div id="extensions_settings2"></div><div id="extensionsMenu"></div><pre id="result" role="status">检查中…</pre>
+<script type="module">
+const result = document.querySelector('#result'), handlers = new Map();
+const record = text => { result.textContent += '\n✓ ' + text; };
+const check = (value, text) => { if (!value) throw new Error(text); record(text); };
+const tick = () => new Promise(resolve => setTimeout(resolve, 50));
+const original = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+try {
+    await import('../index.js');
+    check(!document.getElementById('st-plot-root'), '宿主尚未就绪时不抢先挂载');
+    globalThis.SillyTavern = { getContext: () => ({ extensionSettings: {}, chatMetadata: {}, characters: [], eventTypes: { APP_READY: 'ready' },
+        eventSource: { on(event, fn) { handlers.set(fn, event); }, removeListener(event, fn) { handlers.delete(fn); } }, saveSettingsDebounced() {}, setExtensionPrompt() {} }) };
+    for (let i = 0; i < 80 && !globalThis.stPlot; i++) await tick();
+    check(!!globalThis.stPlot && !!document.getElementById('st-plot-settings-entry') && !!document.getElementById('st-plot-wand'), '宿主延迟就绪后自动注册两个入口');
+    const root = document.getElementById('st-plot-root').shadowRoot;
+    check(!root.querySelector('#story-dock').hidden, '未打开聊天也保留悬浮入口');
+    globalThis.stPlot.open(1);
+    check(root.querySelector('#main-overlay').open && root.querySelector('#stage-count').textContent === '尚未规划阶段', '无 randomUUID 的环境可打开空白主面板');
+    globalThis.stPlot.dispose();
+    check(!document.getElementById('st-plot-root') && handlers.size === 0, '卸载清理界面和订阅');
+    result.dataset.passed = 'true';
+} catch (error) { result.textContent += '\nFAIL: ' + error.message; result.dataset.passed = 'false'; }
+finally { if (original) Object.defineProperty(crypto, 'randomUUID', original); else delete crypto.randomUUID; }
+</script></body></html>

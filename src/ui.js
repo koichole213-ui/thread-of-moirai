@@ -8,15 +8,18 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     const existing = document.getElementById('st-plot-root'); existing?.remove();
     const rootNode = document.createElement('div'); rootNode.id = 'st-plot-root';
     const root = rootNode.attachShadow({ mode: 'open' });
-    const responses = await Promise.all(['ui/shell.html', 'ui/interface.css'].map(path => fetch(new URL(path, baseURL))));
+    const responses = await Promise.all(['ui/shell.html', 'ui/interface.css'].map(path => fetch(new URL(path, baseURL), { cache: 'no-store' })));
     if (responses.some(r => !r.ok)) throw new Error('界面文件读取失败。');
     const [html, css] = await Promise.all(responses.map(r => r.text()));
     const style = document.createElement('style'); style.textContent = css;
     const surface = document.createElement('div'); surface.className = 'plot-surface'; surface.innerHTML = html;
     root.append(style, surface); document.body.append(rootNode);
+    const failedCleanup = [() => rootNode.remove()];
+    try {
+    for (const id of ['main-overlay','dock-stage-page','dock-options-page','dock-page-heading','dock-open-outline','close-main']) if (!root.querySelector(`#${id}`)) throw new Error('界面文件版本不一致，请完整更新。');
     const $ = s => root.querySelector(s), $$ = s => [...root.querySelectorAll(s)];
     const element = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
-    let toastTimer, dockOpen = false, pending = null, busy = false, requestSerial = 0, disposed = false, editorId = null;
+    let toastTimer, dockOpen = false, dockPage = 'stage', pending = null, busy = false, requestSerial = 0, disposed = false, editorId = null;
     let access = { visible: true, tuck: true, side: 'right', position: .4 }, accessChange = null, dock;
     const toast = text => {
         const message = $('#toast');
@@ -26,7 +29,7 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
         toastTimer = setTimeout(() => message.classList.remove('show'), 4500);
     };
     const changed = (redraw = true) => { void persist().catch(() => toast('酒馆保存失败，当前草稿仍保留，请重试。')); if (redraw) render(); };
-    const tabs = mountTabs(root);
+    const tabs = mountTabs(root); failedCleanup.push(() => tabs.dispose());
     let previousOverflow = null;
     const syncScrollLock = () => {
         const lock = !$('#main-overlay').hidden || !!$('dialog[open]');
@@ -34,8 +37,9 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
         if (!lock && previousOverflow !== null) { document.body.style.overflow = previousOverflow; previousOverflow = null; }
     };
     const scrollObserver = new MutationObserver(syncScrollLock); scrollObserver.observe(root, { subtree: true, attributes: true, attributeFilter: ['open', 'hidden'] });
+    failedCleanup.push(() => { scrollObserver.disconnect(); if (previousOverflow !== null) document.body.style.overflow = previousOverflow; clearTimeout(toastTimer); });
     function openDialog(id) { const dialog = $(id); if (!dialog.open) dialog.showModal(); }
-    function closeDock() { dockOpen = false; $('#dock-panel').hidden = true; for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).setAttribute('aria-expanded', 'false'); dock?.sync(access, !!host.identity() && !getState().storageError); }
+    function closeDock() { dockOpen = false; $('#dock-panel').hidden = true; for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).setAttribute('aria-expanded', 'false'); dock?.sync(access); }
     function openMain(tab = 0) {
         const main = $('#main-overlay');
         closeDock(); main.hidden = false; if (!main.open) main.showModal();
@@ -44,17 +48,21 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     function closeMain() { const main = $('#main-overlay'); if (main.open) main.close(); main.hidden = true; }
     $('#main-overlay').addEventListener('close', () => {
         if ($('#main-overlay').open) return;
-        $('#main-overlay').hidden = true; if (!disposed) dock?.sync(access, !!host.identity() && !getState().storageError);
+        $('#main-overlay').hidden = true; if (!disposed) dock?.sync(access);
     });
     function showDock(trigger) {
-        dockOpen = !dockOpen; $('#dock-panel').hidden = !dockOpen; $('#dock-panel').dataset.opening = String(dockOpen);
-        for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).setAttribute('aria-expanded', String(dockOpen));
-        dock?.sync(access, !!host.identity() && !getState().storageError);
+        const page = trigger === 'dock-options' ? 'options' : 'stage';
+        dockOpen = !dockOpen || dockPage !== page; dockPage = page;
+        $('#dock-panel').hidden = !dockOpen; $('#dock-panel').dataset.opening = String(dockOpen);
+        $('#dock-stage-page').hidden = page !== 'stage'; $('#dock-options-page').hidden = page !== 'options';
+        $('#dock-page-heading').textContent = page === 'stage' ? '当前阶段' : '剧情选项';
+        for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).setAttribute('aria-expanded', String(dockOpen && id === trigger));
+        dock?.sync(access);
         if (dockOpen) (trigger === 'dock-options' ? $('#dock-choices input') || $('#dock-close') : $('#dock-close')).focus();
     }
     dock = mountDock(root, { isOpen: () => dockOpen || !!$('dialog[open]'), save: patch => accessChange?.(patch) });
-    const openButton = element('button', '大纲与设置 ↗', 'text-button'); openButton.id = 'plot-open-main';
-    $('.dock-header span').replaceWith(openButton); openButton.onclick = () => openMain(1);
+    failedCleanup.push(() => dock.dispose());
+    $('#dock-open-outline').onclick = () => { closeDock(); openMain(1); pending = null; showOutline(); };
     $('#close-main').onclick = closeMain;
     $('#main-overlay').onclick = e => { if (e.target === $('#main-overlay')) closeMain(); };
     for (const id of ['dock-toggle', 'dock-options']) $(`#${id}`).onclick = () => showDock(id);
@@ -67,6 +75,7 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     const globalKeys = e => { if (e.key === 'Escape' && !$('dialog[open]')) { if (dockOpen) closeDock(); else closeMain(); } };
     const outside = e => { if (dockOpen && !e.composedPath().includes(rootNode)) closeDock(); };
     document.addEventListener('keydown', globalKeys); document.addEventListener('pointerdown', outside);
+    failedCleanup.push(() => { document.removeEventListener('keydown', globalKeys); document.removeEventListener('pointerdown', outside); });
     function cancel() { requestSerial++; generator.cancel(); busy = false; $('#request-dialog').close(); render(); }
     function invalidate() {
         cancel(); pending = null;
@@ -78,6 +87,9 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
         }
     }
     const settingsUI = mountSettings(root, { host, getState, getSettings, toast,
+        saveConnections: patch => {
+            const next = { ...getSettings(), ...clone(patch) }; host.saveSettings(next); setSettings(next); generator.cancel();
+        },
         commit: async (settings, chat) => {
             const live = getState(), identity = host.identity(), candidate = { ...clone(live), ...chat, revision: live.revision + 1 };
             if (candidate.draftSegment && host.getDraft().includes(candidate.draftSegment)) candidate.draftSegment = null;
@@ -215,7 +227,7 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     }
     function render() {
         const s = getState(), stage = currentStage(s), i = currentIndex(s), available = !!host.identity() && !s.storageError;
-        dock.sync(access, available);
+        dock.sync(access);
         $('#chat-label').textContent = available ? `当前聊天 · ${host.getContext().name2 || '群聊'}` : '先打开酒馆聊天';
         for (const id of ['stage-count', 'dock-stage-count']) $(`#${id}`).textContent = stage ? `第 ${i + 1} / ${s.stages.length} 阶段` : '尚未规划阶段';
         for (const id of ['stage-title', 'dock-stage-title']) $(`#${id}`).textContent = stage?.title || '从一个故事念头开始';
@@ -242,8 +254,9 @@ export async function mountUI(host, generator, getState, getSettings, setSetting
     }
     render();
     return { toast, render, open: openMain,
-        setAccess(value) { access = value; if (!access.visible) closeDock(); dock.sync(access, !!host.identity() && !getState().storageError); },
+        setAccess(value) { access = value; if (!access.visible) closeDock(); dock.sync(access); },
         onAccessChange(callback) { accessChange = callback; },
         reset() { cancel(); pending = null; $$('dialog[open]').forEach(d => d.close()); settingsUI.refresh(); closeDock(); render(); },
         dispose() { disposed = true; cancel(); dock.dispose(); settingsUI.dispose(); tabs.dispose(); scrollObserver.disconnect(); if (previousOverflow !== null) document.body.style.overflow = previousOverflow; clearTimeout(toastTimer); document.removeEventListener('keydown', globalKeys); document.removeEventListener('pointerdown', outside); rootNode.remove(); } };
+    } catch (error) { for (const cleanup of failedCleanup.reverse()) { try { cleanup(); } catch {} } throw error; }
 }

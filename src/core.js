@@ -1,7 +1,9 @@
-export const VERSION = '0.1.1-preview.2';
+export const VERSION = '0.1.1-preview.3';
 export const KEY = 'st-plot';
 export const clone = value => structuredClone(value);
-export const uid = () => globalThis.crypto.randomUUID();
+// IDs are data identifiers, not secrets. LAN HTTP may not expose randomUUID.
+let idSequence = 0;
+export const uid = () => globalThis.crypto?.randomUUID?.() ?? `plot-${Date.now().toString(36)}-${(++idSequence).toString(36)}-${Math.random().toString(36).slice(2)}`;
 export const stateKey = (name, id) => JSON.stringify([String(name), String(id)]);
 
 export function initialState() {
